@@ -18,6 +18,24 @@ tools_list = [
 ]
 """
 
+"""千问模型调用工具时输出结构：
+{
+    "role": "assistant",
+    "content": None,
+    "toole_calls": [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "arguments": {
+                    "city": "北京"
+                }
+            }
+        }
+    ]
+}
+"""
+
 # 使用(class)base_tool创建工具
 tool = utils.base_tool("get_weather", "获取指定城市的当前天气", parameters = {"city":{"type":"string","description": "城市名称，如'北京'、'上海'"}})
 

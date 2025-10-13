@@ -93,26 +93,8 @@ class base_agent:
         - 输出包含 JSON 片段：会尝试找到第一个 { ... } 并解析
         返回解析后的 dict 或 None（表示无需调用工具）
         """
-        if not model_output:
+        if not model_output.tool_call:
             return None
-        # 尝试直接解析整个输出
-        try:
-            parsed = json.loads(model_output)
-            if isinstance(parsed, dict) and "tool" in parsed:
-                return parsed
-        except Exception:
-            pass
-        # 尝试在文本中提取第一个 JSON 对象
-        start = model_output.find("{")
-        end = model_output.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            snippet = model_output[start : end + 1]
-            try:
-                parsed = json.loads(snippet)
-                if isinstance(parsed, dict) and "tool" in parsed:
-                    return parsed
-            except Exception:
-                pass
         return None
 
     def run_once(self, user_input: str) -> str:
