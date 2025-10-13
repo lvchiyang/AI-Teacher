@@ -73,10 +73,7 @@ class base_agent:
             ctx = self.memory.get_context(self.memory.get_memory_count())
         else:
             ctx = self.memory.get_context(n)
-        prompt_parts = [
-            self.prompt_head,
-            {"history": ctx}
-        ]
+        prompt_parts = [self.prompt_head] + ctx
         return prompt_parts
     
     def run_once(self, user_input: str) -> str:
