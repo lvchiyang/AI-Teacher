@@ -93,9 +93,20 @@ class base_agent:
         - 输出包含 JSON 片段：会尝试找到第一个 { ... } 并解析
         返回解析后的 dict 或 None（表示无需调用工具）
         """
-        if not model_output.tool_call:
+        if not model_output.tool_calls:
             return None
-        return None
+        tool_calls_list = []
+        for m in model_output.tool_calls:
+            f = m.function
+            # 解析 arguments 字符串为字典
+            try:
+                arguments_dict = json.loads(f.arguments)
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"Error parsing tool arguments: {e}")
+                arguments_dict = f.arguments
+            td = {"name": f.name, "arguments": arguments_dict}
+            tool_calls_list.append(td)
+        return tool_calls_list
 
     def run_once(self, user_input: str) -> str:
         """
