@@ -1,0 +1,10 @@
+{
+    "type": "function",
+    "function": {
+        "name": "finish",
+        "description": "完成问题的最终回答，并结束会话",
+        "parameters": {
+
+        }
+    }
+}

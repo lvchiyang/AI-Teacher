@@ -27,17 +27,15 @@ class base_agent:
     ):
         self.name = name
         self.description: Optional[str] = None
-        # 如果没有提供 model，可以创建一个默认占位模型实例（可在外部替换）
         self.model: "llm_model" = model or llm_model("qwen-turbo")
         self.tools: List["base_tool"] = tools or []
         self.memory: "ContextMemory" = memory or ContextMemory()
         self.max_tool_iterations = max_tool_iterations
         self.running: bool = False
-        self.prompt_head: str = f"""
-        You are an agent named {self.name}.
-        You are a helpful assistant that follows instructions to the best of your ability.
-        Your target description: {self.description or ''}
-        """
+        self.prompt_head: Dict = {
+            "role": "system",
+            "content": "You are a helpful assistant."
+        }
 
 
     def add_tool(self, tool: "base_tool") -> None:
@@ -45,6 +43,7 @@ class base_agent:
         if tool is None:
             return
         self.tools.append(tool)
+        self.model.add_tool(tool)
 
     def get_tool(self, tool_name: str) -> Optional["base_tool"]:
         for t in self.tools:
@@ -76,9 +75,9 @@ class base_agent:
             ctx = self.memory.get_context(n)
         prompt_parts = [
             self.prompt_head,
-            json.dumps(ctx, ensure_ascii=False)
+            {"history": ctx}
         ]
-        return "\n\n".join(prompt_parts)
+        return prompt_parts
     
     def run_once(self, user_input: str) -> str:
         """
@@ -308,6 +307,11 @@ class llm_model:
         self.enable_thinking: bool = kwargs.get("enable_thinking", False)
         self.tools: List[Any] = kwargs.get("tools", [])
 
+    def add_tool(self, tool: base_tool):
+        """
+        添加工具到模型中
+        """
+        self.tools.append(tool.to_tool_spec())
     @classmethod
     def call_qwen_api(cls, input_text: str, **kwargs) -> Optional[str]:
         """
@@ -326,24 +330,15 @@ class llm_model:
                 raise ValueError("DASHSCOPE_API_KEY environment variable not set or api_key not provided")
             
             model_name = kwargs.get("model_name", "qwen-turbo")
-            if not input_text or not isinstance(input_text, str):
-                raise ValueError("Input text must be a non-empty string")
+            if not input_text or (not isinstance(input_text, list) and not isinstance(input_text, dict)):
+                raise ValueError("Input text must be a non-empty object of list[dict] or dict")
             
             client = OpenAI(
                 api_key=api_key,
                 base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             )
 
-            message = [
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant."
-                },
-                {
-                    "role": "user",
-                    "content": input_text
-                }
-            ]
+            message = input_text
             
             completion = client.chat.completions.create(
                 model=model_name,
@@ -613,17 +608,8 @@ class ContextMemory:
             Dict[str, Any]: 上下文信息
         """
         recent_memories = self.get_recent_memories(count)
-        context = {
-            "recent_memories": [
-                {
-                    "id": entry.id,
-                    "content": entry.content,
-                    "timestamp": entry.timestamp.isoformat(),
-                    "metadata": entry.metadata
-                }
+        context = [
+                entry.content
                 for entry in recent_memories
-            ],
-            "memory_count": len(self.memories),
-            "timestamp": datetime.now().isoformat()
-        }
+            ]
         return context

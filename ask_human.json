@@ -1,0 +1,13 @@
+{
+    "type": "function",
+    "function": {
+        "name": "ask human",
+        "description": "获取更多信息，为了完成任务",
+        "parameters": {
+            "question": {
+                "type": "string",
+                "description": "需要获取的信息或问题"
+            }
+        }
+    }
+}
