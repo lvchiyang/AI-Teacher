@@ -26,15 +26,20 @@ class base_agent:
         max_tool_iterations: int = 3,
     ):
         self.name = name
-        self.description: Optional[str] = None
+        self.description: Optional[str] = f"An intelligent agent named {name} capable of using tools and maintaining conversation context"
         self.model: "llm_model" = model or llm_model("qwen-turbo")
         self.tools: List["base_tool"] = tools or []
-        self.memory: "ContextMemory" = memory or ContextMemory()
-        self.max_tool_iterations = max_tool_iterations
+        self.memory: "ContextMemory" = memory or ContextMemory(max_memory_size=20)
+        self.max_tool_iterations = max(1, min(max_tool_iterations, 10))  # 限制在合理范围内
         self.running: bool = False
         self.prompt_head: Dict = {
             "role": "system",
-            "content": "You are a helpful assistant."
+            "content": f"""You are {name}, an intelligent assistant with access to various tools.
+You can use these tools when needed to accomplish tasks. Always follow these guidelines:
+1. Use tools only when necessary
+2. When using a tool, provide clear and complete parameters
+3. After receiving tool results, incorporate them into your response appropriately
+4. If a task cannot be completed, explain why clearly"""
         }
 
 
@@ -67,7 +72,7 @@ class base_agent:
         tool.tool_output = result
         return result
     
-    def _build_prompt(self, n: int = None)-> str:
+    def _build_prompt(self, n: int = None) -> list:
         """根据记忆和工具信息构造提交给模型的 prompt"""
         if not n:
             ctx = self.memory.get_context(self.memory.get_memory_count())
@@ -95,17 +100,14 @@ class base_agent:
         model_output = self.model.generate_text(prompt)
     
         # 校验模型输出合法性
-        if not isinstance(model_output, str):
-            logging.error("Model returned invalid output type: %s", type(model_output))
-            return "Error: model did not return a valid string response."
-    
-        if not model_output.strip():
-            return "Error: model returned an empty response."
+        if not model_output:
+            logging.error("Model returned invalid output")
+            return "Error: model did not return a valid response."
     
         iterations = 0
         # 循环解析模型输出，看是否需要工具调用
         while iterations < self.max_tool_iterations:
-            self.memory.add_memory({"role": "assistant", "text": model_output.content})
+            self.memory.add_memory({"role": "assistant", "content": model_output.content if hasattr(model_output, 'content') else str(model_output)})
             tool_calls = self.model.parse_tool_call(model_output)
             if not tool_calls:
                 break
@@ -121,7 +123,7 @@ class base_agent:
                         "role": "tool",
                         "name": tool_name,
                         "status": "success",
-                        "output": result
+                        "content": result
                     })
                 except Exception as e:
                     has_error = True
@@ -130,7 +132,7 @@ class base_agent:
                         "role": "tool",
                         "name": tool_name,
                         "status": "error",
-                        "error": error_msg
+                        "content": error_msg
                     })
                     logging.warning("Tool '%s' failed with error: %s", tool_name, error_msg)
     
@@ -142,15 +144,16 @@ class base_agent:
             model_output = self.model.generate_text(followup_prompt)
     
             # 再次验证模型输出有效性
-            if not isinstance(model_output, str) or not model_output.strip():
-                logging.warning("Model returned invalid or empty output during iteration.")
+            if not model_output:
+                logging.warning("Model returned invalid output during iteration.")
                 break
     
             iterations += 1
     
         # 将智能体最终回复写入记忆并返回
-        self.memory.add_memory({"role": "agent", "text": model_output})
-        return model_output
+        final_response = model_output.content if hasattr(model_output, 'content') else str(model_output)
+        self.memory.add_memory({"role": "assistant", "content": final_response})
+        return final_response
 
     def run_loop(self, input_iterable, stop_on_exception: bool = True):
         """
@@ -310,57 +313,79 @@ class llm_model:
         """
         self.tools.append(tool.to_tool_spec())
     @classmethod
-    def call_qwen_api(cls, input_text: str, **kwargs) -> Optional[str]:
+    def call_qwen_api(cls, input_text: list, **kwargs) -> Optional[str]:
         """
         调用Qwen API的类方法
         
         Args:
-            input_text: 输入的文本字符串
+            input_text: 输入的文本列表，每个元素为包含role和content的字典
             **kwargs: 其他可选参数，如api_key, model_name等
             
         Returns:
             Optional[str]: API返回的文本响应，失败时返回None
         """
         try:
+            # 参数验证
             api_key = kwargs.get("api_key") or os.getenv("DASHSCOPE_API_KEY")
             if not api_key:
                 raise ValueError("DASHSCOPE_API_KEY environment variable not set or api_key not provided")
             
             model_name = kwargs.get("model_name", "qwen-turbo")
-            if not input_text or (not isinstance(input_text, list) and not isinstance(input_text, dict)):
-                raise ValueError("Input text must be a non-empty object of list[dict] or dict")
+            if not input_text or not isinstance(input_text, list):
+                raise ValueError("Input text must be a non-empty list")
+            
+            # 验证消息格式
+            for msg in input_text:
+                if not isinstance(msg, dict) or 'role' not in msg or 'content' not in msg:
+                    raise ValueError("Each message must be a dict with 'role' and 'content' keys")
             
             client = OpenAI(
                 api_key=api_key,
                 base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             )
 
-            message = input_text
+            # 准备工具参数
+            tools = kwargs.get("tools", None)
             
-            completion = client.chat.completions.create(
-                model=model_name,
-                messages=message,
-                stream=False,
-                extra_body={"enable_thinking": kwargs.get("enable_thinking", False),
-                            "top_k": kwargs.get("top_k", 50)},
-                temperature=kwargs.get("temperature", 0.7),
-                top_p=kwargs.get("top_p", 1.0),
-                max_tokens=kwargs.get("max_tokens", 1024),
-                tools=kwargs.get("tools", None)
-            )
+            # 构建调用参数
+            call_params = {
+                "model": model_name,
+                "messages": input_text,
+                "stream": False,
+                "temperature": kwargs.get("temperature", 0.7),
+                "top_p": kwargs.get("top_p", 1.0),
+                "max_tokens": kwargs.get("max_tokens", 1024),
+            }
+            
+            # 只有当tools存在且非空时才添加到参数中
+            if tools:
+                call_params["tools"] = tools
+                
+            # 添加额外参数
+            extra_body = {}
+            if kwargs.get("enable_thinking") is not None:
+                extra_body["enable_thinking"] = kwargs.get("enable_thinking")
+            if kwargs.get("top_k") is not None:
+                extra_body["top_k"] = kwargs.get("top_k")
+                
+            if extra_body:
+                call_params["extra_body"] = extra_body
+
+            completion = client.chat.completions.create(**call_params)
+            
             if not hasattr(completion, "choices") or not completion.choices:
                 return None
+                
             re_message = completion.choices[0].message
-            if not hasattr(message, "content"):
-                pass
             return re_message
+            
         except ValueError as e:
             # 记录参数错误
-            print(f"ValueError in call_qwen_api: {e}")
+            logging.error(f"ValueError in call_qwen_api: {e}")
             return None
         except Exception as e:
             # 记录其他错误
-            print(f"Error calling Qwen API: {e}")
+            logging.error(f"Error calling Qwen API: {e}")
             return None
 
     def generate_text(self, input_text: str) -> Optional[str]:
@@ -384,7 +409,7 @@ class llm_model:
             enable_thinking=self.enable_thinking
         )
     
-    def parse_tool_call(self, model_output: str) -> Optional[Dict[str, Any]]:
+    def parse_tool_call(self, model_output) -> Optional[List[Dict[str, Any]]]:
         """
         尝试从模型输出解析工具调用请求。
         支持两种情况：
@@ -392,20 +417,37 @@ class llm_model:
         - 输出包含 JSON 片段：会尝试找到第一个 { ... } 并解析
         返回解析后的 dict 或 None（表示无需调用工具）
         """
-        if not model_output.tool_calls:
+        # 处理model_output为None的情况
+        if not model_output:
             return None
+            
+        # 检查是否有tool_calls属性
+        if not hasattr(model_output, 'tool_calls') or not model_output.tool_calls:
+            return None
+            
         tool_calls_list = []
-        for m in model_output.tool_calls:
-            f = m.function
-            # 解析 arguments 字符串为字典
-            try:
-                arguments_dict = json.loads(f.arguments)
-            except (json.JSONDecodeError, TypeError) as e:
-                print(f"Error parsing tool arguments: {e}")
-                arguments_dict = f.arguments
-            td = {"name": f.name, "arguments": arguments_dict}
-            tool_calls_list.append(td)
-        return tool_calls_list
+        try:
+            for m in model_output.tool_calls:
+                f = m.function
+                # 解析 arguments 字符串为字典
+                try:
+                    # 确保f.arguments存在且非空
+                    if not f.arguments:
+                        arguments_dict = {}
+                    else:
+                        arguments_dict = json.loads(f.arguments)
+                except (json.JSONDecodeError, TypeError) as e:
+                    print(f"Error parsing tool arguments: {e}")
+                    arguments_dict = f.arguments if hasattr(f, 'arguments') else {}
+                    
+                td = {"name": f.name if hasattr(f, 'name') else '', 
+                      "arguments": arguments_dict}
+                tool_calls_list.append(td)
+        except Exception as e:
+            print(f"Error processing tool calls: {e}")
+            return None
+            
+        return tool_calls_list if tool_calls_list else None
 
 
 @dataclass
@@ -594,7 +636,7 @@ class ContextMemory:
         """
         return len(self.memories)
 
-    def get_context(self, count: int = 5) -> Dict[str, Any]:
+    def get_context(self, count: int = 5) -> list:
         """
         获取上下文信息，用于对话系统
         
@@ -602,8 +644,11 @@ class ContextMemory:
             count: 包含的记忆条目数量
             
         Returns:
-            Dict[str, Any]: 上下文信息
+            list: 上下文信息列表
         """
+        if count <= 0:
+            return []
+            
         recent_memories = self.get_recent_memories(count)
         context = [
                 entry.content
