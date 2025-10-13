@@ -1,3 +1,8 @@
+import sys
+import os
+# 将项目根目录添加到Python路径中
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 import utils
 
 """千问api的tool参数结构:
@@ -63,7 +68,7 @@ tool_from_json.tool_function()
 # 向工具类中添加需要额外参数的可执行方法，只支持关键字参数
 def func(name = None):
     print("hello world", name)
-tool_from_json.set_function(func, accept_tool_input = False)
+tool_from_json.set_function(func)
 tool_from_json.tool_function(name = "xiaoming")
 
 
