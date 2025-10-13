@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 import json
 import os
+import logging
 from typing import Optional, Dict, Any
 from openai import OpenAI
 from dataclasses import dataclass, field
@@ -25,19 +26,29 @@ class base_agent:
         max_tool_iterations: int = 3,
     ):
         self.name = name
-        self.description: Optional[str] = None
-        # 如果没有提供 model，可以创建一个默认占位模型实例（可在外部替换）
+        self.description: Optional[str] = f"An intelligent agent named {name} capable of using tools and maintaining conversation context"
         self.model: "llm_model" = model or llm_model("qwen-turbo")
         self.tools: List["base_tool"] = tools or []
-        self.memory: "ContextMemory" = memory or ContextMemory()
-        self.max_tool_iterations = max_tool_iterations
+        self.memory: "ContextMemory" = memory or ContextMemory(max_memory_size=20)
+        self.max_tool_iterations = max(1, min(max_tool_iterations, 10))  # 限制在合理范围内
         self.running: bool = False
+        self.prompt_head: Dict = {
+            "role": "system",
+            "content": f"""You are {name}, an intelligent assistant with access to various tools.
+You can use these tools when needed to accomplish tasks. Always follow these guidelines:
+1. Use tools only when necessary
+2. When using a tool, provide clear and complete parameters
+3. After receiving tool results, incorporate them into your response appropriately
+4. If a task cannot be completed, explain why clearly"""
+        }
+
 
     def add_tool(self, tool: "base_tool") -> None:
         """注册外围工具（工具应为 base_tool 的实例）"""
         if tool is None:
             return
         self.tools.append(tool)
+        self.model.add_tool(tool)
 
     def get_tool(self, tool_name: str) -> Optional["base_tool"]:
         for t in self.tools:
@@ -45,7 +56,7 @@ class base_agent:
                 return t
         return None
 
-    def call_tool(self, tool_name: str, tool_input: Any = None, *args, **kwargs) -> Any:
+    def call_tool(self, tool_name: str, **kwargs) -> Any:
         """
         调用已注册工具。
         工具应在 tool.tool_function 中实现实际逻辑。
@@ -56,58 +67,20 @@ class base_agent:
             raise ValueError(f"Tool not found: {tool_name}")
         if not callable(getattr(tool, "tool_function", None)):
             raise ValueError(f"Tool {tool_name} has no callable tool_function")
-        # 保存输入
-        tool.tool_input = tool_input
         # 执行工具
-        result = tool.tool_function(tool_input, *args, **(kwargs or {}))
+        result = tool.tool_function(**(kwargs or {}))
         tool.tool_output = result
         return result
-
-    def _build_prompt(self, user_input: str) -> str:
+    
+    def _build_prompt(self, n: int = None) -> list:
         """根据记忆和工具信息构造提交给模型的 prompt"""
-        ctx = self.memory.get_context(5)
-        tools_info = [
-            {"name": t.tool_name, "description": getattr(t, "tool_description", "")}
-            for t in self.tools
-        ]
-        prompt_parts = [
-            f"Agent: {self.name}",
-            f"Description: {self.description or ''}",
-            "Context:",
-            json.dumps(ctx, ensure_ascii=False),
-            "Available tools:",
-            json.dumps(tools_info, ensure_ascii=False),
-            "User input:",
-            user_input,
-            # 约定：如果模型想要调用工具，返回 JSON 结构如:
-            # {"tool": "tool_name", "input": {...}}
-            "If you want to call a tool, return a JSON object like {\"tool\": \"tool_name\", \"input\": ...}. Otherwise return a normal textual answer."
-        ]
-        return "\n\n".join(prompt_parts)
-
-    def _parse_tool_call(self, model_output: str) -> Optional[Dict[str, Any]]:
-        """
-        尝试从模型输出解析工具调用请求。
-        支持两种情况：
-        - 直接 JSON 字符串： {"tool": "name", "input": ...}
-        - 输出包含 JSON 片段：会尝试找到第一个 { ... } 并解析
-        返回解析后的 dict 或 None（表示无需调用工具）
-        """
-        if not model_output.tool_calls:
-            return None
-        tool_calls_list = []
-        for m in model_output.tool_calls:
-            f = m.function
-            # 解析 arguments 字符串为字典
-            try:
-                arguments_dict = json.loads(f.arguments)
-            except (json.JSONDecodeError, TypeError) as e:
-                print(f"Error parsing tool arguments: {e}")
-                arguments_dict = f.arguments
-            td = {"name": f.name, "arguments": arguments_dict}
-            tool_calls_list.append(td)
-        return tool_calls_list
-
+        if not n:
+            ctx = self.memory.get_context(self.memory.get_memory_count())
+        else:
+            ctx = self.memory.get_context(n)
+        prompt_parts = [self.prompt_head] + ctx
+        return prompt_parts
+    
     def run_once(self, user_input: str) -> str:
         """
         单次运行：
@@ -116,65 +89,144 @@ class base_agent:
         - 如果模型请求工具调用，执行工具并将结果反馈给模型，最多迭代 self.max_tool_iterations 次
         - 返回最终文本响应
         """
+        # 防御性检查最大迭代次数
+        if self.max_tool_iterations <= 0:
+            logging.warning("max_tool_iterations should be positive integer.")
+            return "Error: Invalid max_tool_iterations setting."
+    
         # 记录用户输入到记忆
-        self.memory.add_memory({"role": "user", "text": user_input})
-        prompt = self._build_prompt(user_input)
+        self.memory.add_memory({"role": "user", "content": user_input})
+        prompt = self._build_prompt()
         model_output = self.model.generate_text(prompt)
-        if model_output is None:
-            return "Error: model did not return a response."
-
+    
+        # 校验模型输出合法性
+        if not model_output:
+            logging.error("Model returned invalid output")
+            return "Error: model did not return a valid response."
+    
         iterations = 0
         # 循环解析模型输出，看是否需要工具调用
         while iterations < self.max_tool_iterations:
-            tool_call = self._parse_tool_call(model_output)
-            if not tool_call:
+            self.memory.add_memory({"role": "assistant", "content": model_output.content if hasattr(model_output, 'content') else str(model_output)})
+            tool_calls = self.model.parse_tool_call(model_output)
+            if not tool_calls:
                 break
-            tool_name = tool_call.get("tool")
-            tool_input = tool_call.get("input")
-            try:
-                result = self.call_tool(tool_name, tool_input)
-            except Exception as e:
-                # 将错误反馈给模型并继续
-                error_note = f"Tool {tool_name} call failed: {e}"
-                followup_prompt = f"{model_output}\n\nToolResult: {json.dumps({'tool': tool_name, 'error': str(e)}, ensure_ascii=False)}\n\nPlease continue."
-                model_output = self.model.generate_text(followup_prompt) or error_note
-                iterations += 1
-                continue
-
+    
+            has_error = False
+            for call in tool_calls:
+                tool_name = call.get("name")
+                tool_arguments = call.get("arguments", {})
+    
+                try:
+                    result = self.call_tool(tool_name, **tool_arguments)
+                    self.memory.add_memory({
+                        "role": "tool",
+                        "name": tool_name,
+                        "status": "success",
+                        "content": result
+                    })
+                except Exception as e:
+                    has_error = True
+                    error_msg = str(e)
+                    self.memory.add_memory({
+                        "role": "tool",
+                        "name": tool_name,
+                        "status": "error",
+                        "content": error_msg
+                    })
+                    logging.warning("Tool '%s' failed with error: %s", tool_name, error_msg)
+    
+            # 如果本轮中有任意一个工具调用失败，可以选择提前结束或者标记警告
+            # 此处选择继续尝试下一轮（保持原语义）
+    
             # 把工具输出写入记忆并反馈给模型以便生成最终回答
-            self.memory.add_memory({"role": "tool", "tool": tool_name, "output": result})
-            followup_prompt = f"{model_output}\n\nToolResult: {json.dumps({'tool': tool_name, 'output': result}, ensure_ascii=False)}\n\nPlease continue and provide final answer."
-            model_output = self.model.generate_text(followup_prompt) or str(result)
+            followup_prompt = self._build_prompt()
+            model_output = self.model.generate_text(followup_prompt)
+    
+            # 再次验证模型输出有效性
+            if not model_output:
+                logging.warning("Model returned invalid output during iteration.")
+                break
+    
             iterations += 1
-
+    
         # 将智能体最终回复写入记忆并返回
-        self.memory.add_memory({"role": "agent", "text": model_output})
-        return model_output
+        final_response = model_output.content if hasattr(model_output, 'content') else str(model_output)
+        self.memory.add_memory({"role": "assistant", "content": final_response})
+        return final_response
 
     def run_loop(self, input_iterable, stop_on_exception: bool = True):
         """
-        简单运行循环：按照 input_iterable（可迭代的用户输入）逐条处理并产出响应
+        基于状态机的运行循环：按照 input_iterable（可迭代的用户输入）逐条处理并产出响应
+        状态包括：INITIALIZING, RUNNING, PAUSED, STOPPING, STOPPED, ERROR
         """
-        self.running = True
+        # 定义状态机的状态常量
+        STATE_INITIALIZING = "initializing"
+        STATE_RUNNING = "running"
+        STATE_PAUSED = "paused"
+        STATE_STOPPING = "stopping"
+        STATE_STOPPED = "stopped"
+        STATE_ERROR = "error"
+        
+        # 初始化状态机
+        state = STATE_INITIALIZING
         outputs = []
+        self.running = True
+        
         try:
-            for user_input in input_iterable:
-                if not self.running:
+            while state != STATE_STOPPED and state != STATE_ERROR:
+                if state == STATE_INITIALIZING:
+                    state = STATE_RUNNING
+                    continue
+                    
+                if state == STATE_RUNNING:
+                    try:
+                        for user_input in input_iterable:
+                            if not self.running:
+                                state = STATE_STOPPING
+                                break
+                                
+                            try:
+                                response = self.run_once(user_input)
+                                outputs.append(response)
+                                # 检查是否有暂停请求
+                                if not self.running:
+                                    state = STATE_PAUSED
+                                    break
+                            except Exception as e:
+                                if stop_on_exception:
+                                    state = STATE_ERROR
+                                    raise
+                                response = f"Agent error: {e}"
+                                outputs.append(response)
+                        # 正常完成所有输入处理
+                        if state == STATE_RUNNING:
+                            state = STATE_STOPPING
+                    except Exception as e:
+                        if stop_on_exception:
+                            state = STATE_ERROR
+                            raise
+                        state = STATE_STOPPING
+                        
+                elif state == STATE_PAUSED:
+                    # 暂停状态，等待恢复信号
+                    # 这里可以添加等待逻辑或回调机制
+                    state = STATE_STOPPING  # 简化处理，直接进入停止状态
+                    
+                elif state == STATE_STOPPING:
+                    state = STATE_STOPPED
+                    
+                elif state == STATE_STOPPED:
                     break
-                try:
-                    response = self.run_once(user_input)
-                except Exception as e:
-                    if stop_on_exception:
-                        raise
-                    response = f"Agent error: {e}"
-                outputs.append(response)
-            return outputs
+                    
+                elif state == STATE_ERROR:
+                    break
+                    
         finally:
             self.running = False
-
-    def stop(self) -> None:
-        """停止运行循环（如果在 run_loop 中）"""
-        self.running = False
+            state = STATE_STOPPED
+            
+        return outputs
 
 
 class base_tool:
@@ -255,67 +307,85 @@ class llm_model:
         self.enable_thinking: bool = kwargs.get("enable_thinking", False)
         self.tools: List[Any] = kwargs.get("tools", [])
 
+    def add_tool(self, tool: base_tool):
+        """
+        添加工具到模型中
+        """
+        self.tools.append(tool.to_tool_spec())
     @classmethod
-    def call_qwen_api(cls, input_text: str, **kwargs) -> Optional[str]:
+    def call_qwen_api(cls, input_text: list, **kwargs) -> Optional[str]:
         """
         调用Qwen API的类方法
         
         Args:
-            input_text: 输入的文本字符串
+            input_text: 输入的文本列表，每个元素为包含role和content的字典
             **kwargs: 其他可选参数，如api_key, model_name等
             
         Returns:
             Optional[str]: API返回的文本响应，失败时返回None
         """
         try:
+            # 参数验证
             api_key = kwargs.get("api_key") or os.getenv("DASHSCOPE_API_KEY")
             if not api_key:
                 raise ValueError("DASHSCOPE_API_KEY environment variable not set or api_key not provided")
             
             model_name = kwargs.get("model_name", "qwen-turbo")
-            if not input_text or not isinstance(input_text, str):
-                raise ValueError("Input text must be a non-empty string")
+            if not input_text or not isinstance(input_text, list):
+                raise ValueError("Input text must be a non-empty list")
+            
+            # 验证消息格式
+            for msg in input_text:
+                if not isinstance(msg, dict) or 'role' not in msg or 'content' not in msg:
+                    raise ValueError("Each message must be a dict with 'role' and 'content' keys")
             
             client = OpenAI(
                 api_key=api_key,
                 base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             )
 
-            message = [
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant."
-                },
-                {
-                    "role": "user",
-                    "content": input_text
-                }
-            ]
+            # 准备工具参数
+            tools = kwargs.get("tools", None)
             
-            completion = client.chat.completions.create(
-                model=model_name,
-                messages=message,
-                stream=False,
-                extra_body={"enable_thinking": kwargs.get("enable_thinking", False),
-                            "top_k": kwargs.get("top_k", 50)},
-                temperature=kwargs.get("temperature", 0.7),
-                top_p=kwargs.get("top_p", 1.0),
-                max_tokens=kwargs.get("max_tokens", 1024),
-                tools=kwargs.get("tools", None)
-            )
+            # 构建调用参数
+            call_params = {
+                "model": model_name,
+                "messages": input_text,
+                "stream": False,
+                "temperature": kwargs.get("temperature", 0.7),
+                "top_p": kwargs.get("top_p", 1.0),
+                "max_tokens": kwargs.get("max_tokens", 1024),
+            }
+            
+            # 只有当tools存在且非空时才添加到参数中
+            if tools:
+                call_params["tools"] = tools
+                
+            # 添加额外参数
+            extra_body = {}
+            if kwargs.get("enable_thinking") is not None:
+                extra_body["enable_thinking"] = kwargs.get("enable_thinking")
+            if kwargs.get("top_k") is not None:
+                extra_body["top_k"] = kwargs.get("top_k")
+                
+            if extra_body:
+                call_params["extra_body"] = extra_body
+
+            completion = client.chat.completions.create(**call_params)
+            
             if not hasattr(completion, "choices") or not completion.choices:
                 return None
+                
             re_message = completion.choices[0].message
-            if not hasattr(message, "content"):
-                pass
             return re_message
+            
         except ValueError as e:
             # 记录参数错误
-            print(f"ValueError in call_qwen_api: {e}")
+            logging.error(f"ValueError in call_qwen_api: {e}")
             return None
         except Exception as e:
             # 记录其他错误
-            print(f"Error calling Qwen API: {e}")
+            logging.error(f"Error calling Qwen API: {e}")
             return None
 
     def generate_text(self, input_text: str) -> Optional[str]:
@@ -338,6 +408,46 @@ class llm_model:
             tools=self.tools,
             enable_thinking=self.enable_thinking
         )
+    
+    def parse_tool_call(self, model_output) -> Optional[List[Dict[str, Any]]]:
+        """
+        尝试从模型输出解析工具调用请求。
+        支持两种情况：
+        - 直接 JSON 字符串： {"tool": "name", "input": ...}
+        - 输出包含 JSON 片段：会尝试找到第一个 { ... } 并解析
+        返回解析后的 dict 或 None（表示无需调用工具）
+        """
+        # 处理model_output为None的情况
+        if not model_output:
+            return None
+            
+        # 检查是否有tool_calls属性
+        if not hasattr(model_output, 'tool_calls') or not model_output.tool_calls:
+            return None
+            
+        tool_calls_list = []
+        try:
+            for m in model_output.tool_calls:
+                f = m.function
+                # 解析 arguments 字符串为字典
+                try:
+                    # 确保f.arguments存在且非空
+                    if not f.arguments:
+                        arguments_dict = {}
+                    else:
+                        arguments_dict = json.loads(f.arguments)
+                except (json.JSONDecodeError, TypeError) as e:
+                    print(f"Error parsing tool arguments: {e}")
+                    arguments_dict = f.arguments if hasattr(f, 'arguments') else {}
+                    
+                td = {"name": f.name if hasattr(f, 'name') else '', 
+                      "arguments": arguments_dict}
+                tool_calls_list.append(td)
+        except Exception as e:
+            print(f"Error processing tool calls: {e}")
+            return None
+            
+        return tool_calls_list if tool_calls_list else None
 
 
 @dataclass
@@ -526,7 +636,7 @@ class ContextMemory:
         """
         return len(self.memories)
 
-    def get_context(self, count: int = 5) -> Dict[str, Any]:
+    def get_context(self, count: int = 5) -> list:
         """
         获取上下文信息，用于对话系统
         
@@ -534,20 +644,14 @@ class ContextMemory:
             count: 包含的记忆条目数量
             
         Returns:
-            Dict[str, Any]: 上下文信息
+            list: 上下文信息列表
         """
+        if count <= 0:
+            return []
+            
         recent_memories = self.get_recent_memories(count)
-        context = {
-            "recent_memories": [
-                {
-                    "id": entry.id,
-                    "content": entry.content,
-                    "timestamp": entry.timestamp.isoformat(),
-                    "metadata": entry.metadata
-                }
+        context = [
+                entry.content
                 for entry in recent_memories
-            ],
-            "memory_count": len(self.memories),
-            "timestamp": datetime.now().isoformat()
-        }
+            ]
         return context
