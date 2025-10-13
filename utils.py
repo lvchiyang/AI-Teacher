@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 import json
 import os
+import logging
 from typing import Optional, Dict, Any
 from openai import OpenAI
 from dataclasses import dataclass, field
@@ -32,6 +33,12 @@ class base_agent:
         self.memory: "ContextMemory" = memory or ContextMemory()
         self.max_tool_iterations = max_tool_iterations
         self.running: bool = False
+        self.prompt_head: str = f"""
+        You are an agent named {self.name}.
+        You are a helpful assistant that follows instructions to the best of your ability.
+        Your target description: {self.description or ''}
+        """
+
 
     def add_tool(self, tool: "base_tool") -> None:
         """注册外围工具（工具应为 base_tool 的实例）"""
@@ -45,7 +52,7 @@ class base_agent:
                 return t
         return None
 
-    def call_tool(self, tool_name: str, tool_input: Any = None, *args, **kwargs) -> Any:
+    def call_tool(self, tool_name: str, **kwargs) -> Any:
         """
         调用已注册工具。
         工具应在 tool.tool_function 中实现实际逻辑。
@@ -56,58 +63,23 @@ class base_agent:
             raise ValueError(f"Tool not found: {tool_name}")
         if not callable(getattr(tool, "tool_function", None)):
             raise ValueError(f"Tool {tool_name} has no callable tool_function")
-        # 保存输入
-        tool.tool_input = tool_input
         # 执行工具
-        result = tool.tool_function(tool_input, *args, **(kwargs or {}))
+        result = tool.tool_function(**(kwargs or {}))
         tool.tool_output = result
         return result
-
-    def _build_prompt(self, user_input: str) -> str:
+    
+    def _build_prompt(self, n: int = None)-> str:
         """根据记忆和工具信息构造提交给模型的 prompt"""
-        ctx = self.memory.get_context(5)
-        tools_info = [
-            {"name": t.tool_name, "description": getattr(t, "tool_description", "")}
-            for t in self.tools
-        ]
+        if not n:
+            ctx = self.memory.get_context(self.memory.get_memory_count())
+        else:
+            ctx = self.memory.get_context(n)
         prompt_parts = [
-            f"Agent: {self.name}",
-            f"Description: {self.description or ''}",
-            "Context:",
-            json.dumps(ctx, ensure_ascii=False),
-            "Available tools:",
-            json.dumps(tools_info, ensure_ascii=False),
-            "User input:",
-            user_input,
-            # 约定：如果模型想要调用工具，返回 JSON 结构如:
-            # {"tool": "tool_name", "input": {...}}
-            "If you want to call a tool, return a JSON object like {\"tool\": \"tool_name\", \"input\": ...}. Otherwise return a normal textual answer."
+            self.prompt_head,
+            json.dumps(ctx, ensure_ascii=False)
         ]
         return "\n\n".join(prompt_parts)
-
-    def _parse_tool_call(self, model_output: str) -> Optional[Dict[str, Any]]:
-        """
-        尝试从模型输出解析工具调用请求。
-        支持两种情况：
-        - 直接 JSON 字符串： {"tool": "name", "input": ...}
-        - 输出包含 JSON 片段：会尝试找到第一个 { ... } 并解析
-        返回解析后的 dict 或 None（表示无需调用工具）
-        """
-        if not model_output.tool_calls:
-            return None
-        tool_calls_list = []
-        for m in model_output.tool_calls:
-            f = m.function
-            # 解析 arguments 字符串为字典
-            try:
-                arguments_dict = json.loads(f.arguments)
-            except (json.JSONDecodeError, TypeError) as e:
-                print(f"Error parsing tool arguments: {e}")
-                arguments_dict = f.arguments
-            td = {"name": f.name, "arguments": arguments_dict}
-            tool_calls_list.append(td)
-        return tool_calls_list
-
+    
     def run_once(self, user_input: str) -> str:
         """
         单次运行：
@@ -116,65 +88,146 @@ class base_agent:
         - 如果模型请求工具调用，执行工具并将结果反馈给模型，最多迭代 self.max_tool_iterations 次
         - 返回最终文本响应
         """
+        # 防御性检查最大迭代次数
+        if self.max_tool_iterations <= 0:
+            logging.warning("max_tool_iterations should be positive integer.")
+            return "Error: Invalid max_tool_iterations setting."
+    
         # 记录用户输入到记忆
-        self.memory.add_memory({"role": "user", "text": user_input})
-        prompt = self._build_prompt(user_input)
+        self.memory.add_memory({"role": "user", "content": user_input})
+        prompt = self._build_prompt()
         model_output = self.model.generate_text(prompt)
-        if model_output is None:
-            return "Error: model did not return a response."
-
+    
+        # 校验模型输出合法性
+        if not isinstance(model_output, str):
+            logging.error("Model returned invalid output type: %s", type(model_output))
+            return "Error: model did not return a valid string response."
+    
+        if not model_output.strip():
+            return "Error: model returned an empty response."
+    
         iterations = 0
         # 循环解析模型输出，看是否需要工具调用
         while iterations < self.max_tool_iterations:
-            tool_call = self._parse_tool_call(model_output)
-            if not tool_call:
+            self.memory.add_memory({"role": "assistant", "text": model_output.content})
+            tool_calls = self.model.parse_tool_call(model_output)
+            if not tool_calls:
                 break
-            tool_name = tool_call.get("tool")
-            tool_input = tool_call.get("input")
-            try:
-                result = self.call_tool(tool_name, tool_input)
-            except Exception as e:
-                # 将错误反馈给模型并继续
-                error_note = f"Tool {tool_name} call failed: {e}"
-                followup_prompt = f"{model_output}\n\nToolResult: {json.dumps({'tool': tool_name, 'error': str(e)}, ensure_ascii=False)}\n\nPlease continue."
-                model_output = self.model.generate_text(followup_prompt) or error_note
-                iterations += 1
-                continue
-
+    
+            has_error = False
+            for call in tool_calls:
+                tool_name = call.get("name")
+                tool_arguments = call.get("arguments", {})
+    
+                try:
+                    result = self.call_tool(tool_name, **tool_arguments)
+                    self.memory.add_memory({
+                        "role": "tool",
+                        "name": tool_name,
+                        "status": "success",
+                        "output": result
+                    })
+                except Exception as e:
+                    has_error = True
+                    error_msg = str(e)
+                    self.memory.add_memory({
+                        "role": "tool",
+                        "name": tool_name,
+                        "status": "error",
+                        "error": error_msg
+                    })
+                    logging.warning("Tool '%s' failed with error: %s", tool_name, error_msg)
+    
+            # 如果本轮中有任意一个工具调用失败，可以选择提前结束或者标记警告
+            # 此处选择继续尝试下一轮（保持原语义）
+    
             # 把工具输出写入记忆并反馈给模型以便生成最终回答
-            self.memory.add_memory({"role": "tool", "tool": tool_name, "output": result})
-            followup_prompt = f"{model_output}\n\nToolResult: {json.dumps({'tool': tool_name, 'output': result}, ensure_ascii=False)}\n\nPlease continue and provide final answer."
-            model_output = self.model.generate_text(followup_prompt) or str(result)
+            followup_prompt = self._build_prompt()
+            model_output = self.model.generate_text(followup_prompt)
+    
+            # 再次验证模型输出有效性
+            if not isinstance(model_output, str) or not model_output.strip():
+                logging.warning("Model returned invalid or empty output during iteration.")
+                break
+    
             iterations += 1
-
+    
         # 将智能体最终回复写入记忆并返回
         self.memory.add_memory({"role": "agent", "text": model_output})
         return model_output
 
     def run_loop(self, input_iterable, stop_on_exception: bool = True):
         """
-        简单运行循环：按照 input_iterable（可迭代的用户输入）逐条处理并产出响应
+        基于状态机的运行循环：按照 input_iterable（可迭代的用户输入）逐条处理并产出响应
+        状态包括：INITIALIZING, RUNNING, PAUSED, STOPPING, STOPPED, ERROR
         """
-        self.running = True
+        # 定义状态机的状态常量
+        STATE_INITIALIZING = "initializing"
+        STATE_RUNNING = "running"
+        STATE_PAUSED = "paused"
+        STATE_STOPPING = "stopping"
+        STATE_STOPPED = "stopped"
+        STATE_ERROR = "error"
+        
+        # 初始化状态机
+        state = STATE_INITIALIZING
         outputs = []
+        self.running = True
+        
         try:
-            for user_input in input_iterable:
-                if not self.running:
+            while state != STATE_STOPPED and state != STATE_ERROR:
+                if state == STATE_INITIALIZING:
+                    state = STATE_RUNNING
+                    continue
+                    
+                if state == STATE_RUNNING:
+                    try:
+                        for user_input in input_iterable:
+                            if not self.running:
+                                state = STATE_STOPPING
+                                break
+                                
+                            try:
+                                response = self.run_once(user_input)
+                                outputs.append(response)
+                                # 检查是否有暂停请求
+                                if not self.running:
+                                    state = STATE_PAUSED
+                                    break
+                            except Exception as e:
+                                if stop_on_exception:
+                                    state = STATE_ERROR
+                                    raise
+                                response = f"Agent error: {e}"
+                                outputs.append(response)
+                        # 正常完成所有输入处理
+                        if state == STATE_RUNNING:
+                            state = STATE_STOPPING
+                    except Exception as e:
+                        if stop_on_exception:
+                            state = STATE_ERROR
+                            raise
+                        state = STATE_STOPPING
+                        
+                elif state == STATE_PAUSED:
+                    # 暂停状态，等待恢复信号
+                    # 这里可以添加等待逻辑或回调机制
+                    state = STATE_STOPPING  # 简化处理，直接进入停止状态
+                    
+                elif state == STATE_STOPPING:
+                    state = STATE_STOPPED
+                    
+                elif state == STATE_STOPPED:
                     break
-                try:
-                    response = self.run_once(user_input)
-                except Exception as e:
-                    if stop_on_exception:
-                        raise
-                    response = f"Agent error: {e}"
-                outputs.append(response)
-            return outputs
+                    
+                elif state == STATE_ERROR:
+                    break
+                    
         finally:
             self.running = False
-
-    def stop(self) -> None:
-        """停止运行循环（如果在 run_loop 中）"""
-        self.running = False
+            state = STATE_STOPPED
+            
+        return outputs
 
 
 class base_tool:
@@ -338,6 +391,29 @@ class llm_model:
             tools=self.tools,
             enable_thinking=self.enable_thinking
         )
+    
+    def parse_tool_call(self, model_output: str) -> Optional[Dict[str, Any]]:
+        """
+        尝试从模型输出解析工具调用请求。
+        支持两种情况：
+        - 直接 JSON 字符串： {"tool": "name", "input": ...}
+        - 输出包含 JSON 片段：会尝试找到第一个 { ... } 并解析
+        返回解析后的 dict 或 None（表示无需调用工具）
+        """
+        if not model_output.tool_calls:
+            return None
+        tool_calls_list = []
+        for m in model_output.tool_calls:
+            f = m.function
+            # 解析 arguments 字符串为字典
+            try:
+                arguments_dict = json.loads(f.arguments)
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"Error parsing tool arguments: {e}")
+                arguments_dict = f.arguments
+            td = {"name": f.name, "arguments": arguments_dict}
+            tool_calls_list.append(td)
+        return tool_calls_list
 
 
 @dataclass
