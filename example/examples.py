@@ -55,7 +55,7 @@ print(response)
 
 # 从json文件中创建工具
 import json
-tool_example = json.load(open("tool_example.json"))
+tool_example = json.load(open("./example/tool_example.json"))
 print(type(tool_example))
 tool_from_json = utils.base_tool.from_spec(tool_example)
 
@@ -73,9 +73,9 @@ tool_from_json.tool_function(name = "xiaoming")
 
 
 # 创建一个agent用于获得天气
-get_weather = utils.base_tool.from_spec(json.load(open("get_weather.json")))
-ask_human = utils.base_tool.from_spec(json.load(open("ask_human.json")))
-finish = utils.base_tool.from_spec(json.load(open("finish.json")))
+get_weather = utils.base_tool.from_spec(json.load(open("./example/get_weather.json")))
+ask_human = utils.base_tool.from_spec(json.load(open("./example/ask_human.json")))
+finish = utils.base_tool.from_spec(json.load(open("./example/finish.json")))
 agent = utils.base_agent("assistant", model=utils.llm_model("qwen-plus"))
 
 def get_weather_func(city: str) -> str:
