@@ -10,13 +10,22 @@ AI教师系统是一个基于人工智能技术的K12在线教育平台，通过
 ```
 AI Teacher/
 ├── README.md                           # 项目说明文档
-├── explaination.py                     # AI工具使用示例
 ├── utils.py                            # AI Agent基础工具类
-├── tool_example.json                   # 工具配置示例
-├── 初中数学大纲.md                     # 教学大纲知识库
 ├── gradle.properties                   # Gradle配置文件
+├── local.properties                    # 本地配置文件
+├── build.gradle.kts                    # 项目级构建配置
+├── settings.gradle.kts                 # 项目设置配置
+├── gradlew                             # Gradle启动脚本(Linux/macOS)
+├── gradlew.bat                         # Gradle启动脚本(Windows)
 ├── .gitignore                          # Git忽略文件配置
 ├── __pycache__/                        # Python缓存目录
+├── example/                            # 示例文件目录
+│   ├── examples.py                     # 基础使用示例
+│   ├── comprehensive_examples.py       # 综合使用示例
+│   ├── tool_example.json               # 工具配置示例
+│   ├── get_weather.json                # 天气工具示例
+│   ├── ask_human.json                  # 询问人类工具示例
+│   └── finish.json                     # 完成工具示例
 ├── doc/                                # 项目文档目录
 │   ├── 01_市场调研报告.md              # 市场调研分析
 │   ├── 02_用户需求分析.md              # 用户需求分析
@@ -30,7 +39,12 @@ AI Teacher/
 │   ├── build.gradle.kts                # 应用级构建配置
 │   └── src/main/                       # 主要源代码
 │       ├── AndroidManifest.xml         # 应用清单文件
-│       └── java/com/aiteacher/         # Kotlin源代码
+│       ├── res/                        # 资源文件
+│       │   └── values/                # 值资源
+│       │       ├── colors.xml         # 颜色定义
+│       │       ├── strings.xml        # 字符串定义
+│       │       └── themes.xml         # 主题定义
+│       └── java/com/aiteacher/        # Kotlin源代码
 │           ├── presentation/           # 表现层
 │           │   ├── ui/                 # UI组件
 │           │   │   ├── MainActivity.kt  # 主活动
@@ -56,9 +70,11 @@ AI Teacher/
 │                   ├── TeachingPlanUseCase.kt
 │                   ├── TeachingTaskUseCase.kt
 │                   └── TestingTaskUseCase.kt
-└── gradle/                             # Gradle配置
-    └── wrapper/
-        └── gradle-wrapper.properties
+├── gradle/                             # Gradle配置
+│   └── wrapper/
+│       ├── gradle-wrapper.jar
+│       └── gradle-wrapper.properties
+└── 初中数学大纲.md                     # 教学大纲知识库
 ```
 
 ## 核心功能
