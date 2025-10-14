@@ -17,7 +17,8 @@ import com.aiteacher.presentation.navigation.Screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WelcomeScreen(
-    navController: NavController
+    navController: NavController,
+    onBackToHome: () -> Unit
 ) {
     var selectedGrade by remember { mutableStateOf("") }
     var studentName by remember { mutableStateOf("") }

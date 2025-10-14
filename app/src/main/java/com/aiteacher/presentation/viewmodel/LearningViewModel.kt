@@ -89,6 +89,25 @@ class LearningViewModel : ViewModel() {
     }
     
     /**
+     * 继续下一个教学任务
+     */
+    fun continueToNextTask() {
+        val currentTask = _uiState.value.currentTask ?: return
+        val plan = _uiState.value.currentPlan ?: return
+        
+        // MVP简化：教学阶段只有一道题，完成后直接进入测试阶段
+        val allPoints = plan.newKnowledgePoints + plan.reviewKnowledgePoints
+        
+        // 清空反馈
+        _uiState.value = _uiState.value.copy(
+            feedback = null
+        )
+        
+        // 直接进入测试阶段
+        startTesting(currentTask.studentId, allPoints)
+    }
+    
+    /**
      * 处理学生回答
      * 教学阶段：验证学生对知识点的理解
      */
@@ -102,34 +121,17 @@ class LearningViewModel : ViewModel() {
                     answer
                 ).getOrThrow()
                 
-                if (result.shouldUpdateProgress) {
-                    // 完成任务，更新进度（MVP简化：暂时不更新数据库）
-                    // teachingTaskUseCase.completeTeachingTask(...)
-                    
-                    // 检查是否还有更多教学任务
-                    val plan = _uiState.value.currentPlan ?: return@launch
-                    val allPoints = plan.newKnowledgePoints + plan.reviewKnowledgePoints
-                    val completedPoints = mutableSetOf<String>()
-                    
-                    // 添加当前完成的知识点
-                    completedPoints.add(currentTask.knowledgePointId)
-                    
-                    val remainingPoints = allPoints.filter { !completedPoints.contains(it) }
-                    
-                    if (remainingPoints.isNotEmpty()) {
-                        // 继续下一个教学任务
-                        startLearning(currentTask.studentId)
-                    } else {
-                        // 所有教学任务完成，进入检验阶段
-                        startTesting(currentTask.studentId, allPoints)
-                    }
-                } else {
+                // 先更新反馈信息
+                _uiState.value = _uiState.value.copy(
+                    feedback = result.feedback
+                )
+                
+                if (!result.shouldUpdateProgress) {
                     // 更新当前任务状态
                     _uiState.value = _uiState.value.copy(
                         currentTask = currentTask.copy(
                             noResponseCount = currentTask.noResponseCount + 1
-                        ),
-                        feedback = result.feedback
+                        )
                     )
                 }
             } catch (e: Exception) {
@@ -186,7 +188,7 @@ class LearningViewModel : ViewModel() {
                 
                 _uiState.value = _uiState.value.copy(
                     currentTestingResult = result,
-                    feedback = result.feedback
+                    feedback = "测试完成，得分：${result.totalScore}/${result.maxScore}"
                 )
                 
                 // 检查是否完成所有题目

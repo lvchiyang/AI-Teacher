@@ -86,12 +86,12 @@ class TeachingTaskUseCase {
         answer: String
     ): Result<TeachingTaskResult> {
         return try {
-            // 模拟AI判断答案正确性
-            val isCorrect = answer.isNotEmpty() && answer.length > 3
+            // MVP阶段：简化答案判断逻辑，让教学更容易通过
+            val isCorrect = answer.isNotEmpty() && answer.trim().length >= 1
             
             val result = TeachingTaskResult(
                 isCorrect = isCorrect,
-                feedback = if (isCorrect) "回答正确！" else "回答需要改进",
+                feedback = if (isCorrect) "回答正确！继续学习下一个知识点" else "请输入你的答案",
                 nextAction = if (isCorrect) "继续下一题" else "重新讲解",
                 shouldUpdateProgress = isCorrect
             )

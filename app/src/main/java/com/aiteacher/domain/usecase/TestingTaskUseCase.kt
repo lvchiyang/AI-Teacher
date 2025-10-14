@@ -52,17 +52,52 @@ class TestingTaskUseCase {
      */
     suspend fun startTestingTask(taskId: String): Result<TestingTask> {
         return try {
-            // 这里应该从数据库获取任务并更新状态
-            // 暂时返回模拟数据
+            // MVP阶段：返回包含题目的测试任务
+            val questions = listOf(
+                TestQuestion(
+                    questionId = "test_q_1",
+                    knowledgePointId = "7_1_1_1",
+                    content = "请计算：2 + 3 = ?",
+                    image = null,
+                    type = QuestionType.CALCULATION,
+                    correctAnswer = "5",
+                    explanation = "2 + 3 = 5",
+                    points = 10,
+                    timeLimit = 5
+                ),
+                TestQuestion(
+                    questionId = "test_q_2",
+                    knowledgePointId = "7_1_1_2",
+                    content = "请计算：4 × 2 = ?",
+                    image = null,
+                    type = QuestionType.CALCULATION,
+                    correctAnswer = "8",
+                    explanation = "4 × 2 = 8",
+                    points = 10,
+                    timeLimit = 5
+                ),
+                TestQuestion(
+                    questionId = "test_q_3",
+                    knowledgePointId = "7_1_1_3",
+                    content = "请计算：10 - 3 = ?",
+                    image = null,
+                    type = QuestionType.CALCULATION,
+                    correctAnswer = "7",
+                    explanation = "10 - 3 = 7",
+                    points = 10,
+                    timeLimit = 5
+                )
+            )
+            
             val task = TestingTask(
                 taskId = taskId,
                 studentId = "student_1",
-                knowledgePointIds = listOf("7_1_1_1", "7_1_1_2"),
-                questions = emptyList(),
+                knowledgePointIds = listOf("7_1_1_1", "7_1_1_2", "7_1_1_3"),
+                questions = questions,
                 status = TaskStatus.IN_PROGRESS,
                 currentQuestionIndex = 0,
                 startTime = getCurrentTime(),
-                timeLimit = 10
+                timeLimit = questions.sumOf { it.timeLimit }
             )
             
             Result.success(task)
@@ -82,8 +117,8 @@ class TestingTaskUseCase {
         imageAnswer: String? = null
     ): Result<TestingResult> {
         return try {
-            // 模拟AI评判答案
-            val isCorrect = answer.isNotEmpty() && answer.length > 2
+            // MVP阶段：简化答案判断逻辑
+            val isCorrect = answer.isNotEmpty() && answer.trim().length >= 1
             val score = if (isCorrect) 10 else 0
             
             val studentAnswer = StudentAnswer(
@@ -99,12 +134,16 @@ class TestingTaskUseCase {
             )
             
             val result = TestingResult(
-                studentAnswer = studentAnswer,
-                isCorrect = isCorrect,
-                score = score,
-                feedback = if (isCorrect) "回答正确！" else "答案有误，请查看解析",
-                explanation = "这是详细的题目解析",
-                shouldUpdateProgress = true
+                resultId = generateResultId(),
+                taskId = taskId,
+                studentId = studentId,
+                totalScore = score,
+                maxScore = 100,
+                correctCount = if (isCorrect) 1 else 0,
+                totalCount = 1,
+                timeSpent = 30,
+                answers = listOf(studentAnswer),
+                timestamp = getCurrentTime()
             )
             
             Result.success(result)
@@ -150,16 +189,8 @@ class TestingTaskUseCase {
         return java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
             .format(java.util.Date())
     }
+    
+    private fun generateResultId(): String {
+        return "result_${System.currentTimeMillis()}"
+    }
 }
-
-/**
- * 检验结果模型
- */
-data class TestingResult(
-    val studentAnswer: StudentAnswer,
-    val isCorrect: Boolean,
-    val score: Int,
-    val feedback: String,
-    val explanation: String,
-    val shouldUpdateProgress: Boolean
-)

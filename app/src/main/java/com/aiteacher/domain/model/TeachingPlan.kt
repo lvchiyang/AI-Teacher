@@ -1,13 +1,9 @@
 package com.aiteacher.domain.model
 
-import android.os.Parcelable
-import kotlinx.parcelize.Parcelize
-
 /**
  * 教学计划模型
  * 教秘Agent制定的教学计划
  */
-@Parcelize
 data class TeachingPlan(
     val planId: String,                       // 计划ID
     val studentId: String,                    // 学生ID
@@ -18,7 +14,7 @@ data class TeachingPlan(
     val newKnowledgePoints: List<String>,     // 新教知识点ID列表
     val estimatedDuration: Int,               // 预计时长（分钟）
     val status: PlanStatus                     // 计划状态
-) : Parcelable
+)
 
 /**
  * 计划状态枚举

@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiteacher.domain.model.TestingResult
 import com.aiteacher.presentation.viewmodel.LearningViewModel
 import com.aiteacher.presentation.viewmodel.LearningPhase
 
@@ -19,6 +20,7 @@ import com.aiteacher.presentation.viewmodel.LearningPhase
 fun LearningScreen(
     studentId: String,
     onNavigateToParent: () -> Unit = {},
+    onBackToHome: () -> Unit = {},
     viewModel: LearningViewModel = remember { LearningViewModel() }
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -69,7 +71,8 @@ fun LearningScreen(
                 TeachingScreen(
                     task = uiState.currentTask!!,
                     feedback = uiState.feedback,
-                    onAnswerSubmit = { answer -> viewModel.handleStudentAnswer(answer) }
+                    onAnswerSubmit = { answer -> viewModel.handleStudentAnswer(answer) },
+                    onContinueNext = { viewModel.continueToNextTask() }
                 )
             }
             
@@ -88,7 +91,8 @@ fun LearningScreen(
                 CompletedScreen(
                     achievement = uiState.achievement ?: "学习完成！",
                     onRestart = { viewModel.loadTodayTeachingPlan(studentId) },
-                    onNavigateToParent = onNavigateToParent
+                    onNavigateToParent = onNavigateToParent,
+                    onBackToHome = onBackToHome
                 )
             }
         }
@@ -228,7 +232,8 @@ fun TeachingPlanScreen(
 fun TeachingScreen(
     task: com.aiteacher.domain.model.TeachingTask,
     feedback: String?,
-    onAnswerSubmit: (String) -> Unit
+    onAnswerSubmit: (String) -> Unit,
+    onContinueNext: () -> Unit = {}
 ) {
     var answer by remember { mutableStateOf("") }
     
@@ -305,11 +310,29 @@ fun TeachingScreen(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             ) {
-                Text(
-                    text = feedbackText,
-                    fontSize = 14.sp,
+                Column(
                     modifier = Modifier.padding(16.dp)
-                )
+                ) {
+                    Text(
+                        text = feedbackText,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    
+                    // 如果回答正确，显示继续按钮
+                    if (feedbackText.contains("回答正确")) {
+                        Button(
+                            onClick = { 
+                                // 清空答案和反馈，准备下一题
+                                answer = ""
+                                onContinueNext()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("进入测试阶段")
+                        }
+                    }
+                }
             }
         }
     }
@@ -318,7 +341,7 @@ fun TeachingScreen(
 @Composable
 fun TestingScreen(
     testingTask: com.aiteacher.domain.model.TestingTask,
-    result: com.aiteacher.domain.usecase.TestingResult?,
+    result: TestingResult?,
     feedback: String?,
     onAnswerSubmit: (String, String?) -> Unit
 ) {
@@ -394,12 +417,12 @@ fun TestingScreen(
                 }
             }
             
-            result?.let { testResult ->
+            result?.let { testResult: TestingResult ->
                 Spacer(modifier = Modifier.height(16.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (testResult.isCorrect) 
+                        containerColor = if (testResult.correctCount > 0) 
                             MaterialTheme.colorScheme.primaryContainer 
                         else MaterialTheme.colorScheme.errorContainer
                     )
@@ -408,20 +431,20 @@ fun TestingScreen(
                         modifier = Modifier.padding(16.dp)
                     ) {
                         Text(
-                            text = if (testResult.isCorrect) "回答正确！" else "回答有误",
+                            text = "测试完成！得分：${testResult.totalScore}/${testResult.maxScore}",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         
                         Text(
-                            text = "得分：${testResult.score}分",
+                            text = "正确题数：${testResult.correctCount}/${testResult.totalCount}",
                             fontSize = 14.sp,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         
                         Text(
-                            text = testResult.explanation,
+                            text = "用时：${testResult.timeSpent}秒",
                             fontSize = 14.sp,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
@@ -452,7 +475,8 @@ fun TestingScreen(
 fun CompletedScreen(
     achievement: String,
     onRestart: () -> Unit,
-    onNavigateToParent: () -> Unit = {}
+    onNavigateToParent: () -> Unit = {},
+    onBackToHome: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -473,34 +497,53 @@ fun CompletedScreen(
             modifier = Modifier.padding(bottom = 24.dp)
         )
         
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Button(
-                onClick = onRestart,
+                onClick = onBackToHome,
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxWidth()
                     .height(56.dp)
             ) {
                 Text(
-                    text = "重新开始",
+                    text = "返回主页",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
             
-            Button(
-                onClick = onNavigateToParent,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = "家长监督",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                Button(
+                    onClick = onRestart,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                ) {
+                    Text(
+                        text = "重新开始",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                
+                Button(
+                    onClick = onNavigateToParent,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                ) {
+                    Text(
+                        text = "家长监督",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }
