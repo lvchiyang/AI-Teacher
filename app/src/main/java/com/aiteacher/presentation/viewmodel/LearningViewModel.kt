@@ -2,7 +2,9 @@ package com.aiteacher.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aiteacher.data.local.repository.StudentRepository
 import com.aiteacher.domain.model.*
+import com.aiteacher.domain.usecase.StudentUseCase
 import com.aiteacher.domain.usecase.TeachingPlanUseCase
 import com.aiteacher.domain.usecase.TeachingTaskUseCase
 import com.aiteacher.domain.usecase.TestingTaskUseCase
@@ -15,12 +17,13 @@ import kotlinx.coroutines.launch
  * 学习ViewModel
  * 处理UI层与业务逻辑层的交互
  */
-class LearningViewModel : ViewModel() {
+class LearningViewModel(private val studentRepository: StudentRepository) : ViewModel() {
     
     private val _uiState = MutableStateFlow(LearningUiState())
     val uiState: StateFlow<LearningUiState> = _uiState.asStateFlow()
     
     // MVP简化：直接创建UseCase实例
+    private val studentUseCase = StudentUseCase(studentRepository)
     private val teachingPlanUseCase = TeachingPlanUseCase()
     private val teachingTaskUseCase = TeachingTaskUseCase()
     private val testingTaskUseCase = TestingTaskUseCase()
@@ -126,7 +129,13 @@ class LearningViewModel : ViewModel() {
                     feedback = result.feedback
                 )
                 
-                if (!result.shouldUpdateProgress) {
+                if (result.shouldUpdateProgress) {
+                    // 更新学生学习进度：完成教学任务
+                    studentUseCase.completeTeachingTask(
+                        currentTask.studentId,
+                        currentTask.knowledgePointId
+                    )
+                } else {
                     // 更新当前任务状态
                     _uiState.value = _uiState.value.copy(
                         currentTask = currentTask.copy(
@@ -186,6 +195,14 @@ class LearningViewModel : ViewModel() {
                     imageAnswer
                 ).getOrThrow()
                 
+                // 更新学生学习进度：完成测试任务
+                val isCorrect = result.correctCount > 0
+                studentUseCase.completeTestingTask(
+                    currentTestingTask.studentId,
+                    currentQuestion.knowledgePointId,
+                    isCorrect
+                )
+                
                 _uiState.value = _uiState.value.copy(
                     currentTestingResult = result,
                     feedback = "测试完成，得分：${result.totalScore}/${result.maxScore}"
@@ -193,9 +210,7 @@ class LearningViewModel : ViewModel() {
                 
                 // 检查是否完成所有题目
                 if (currentTestingTask.currentQuestionIndex >= currentTestingTask.questions.size - 1) {
-                    // 完成检验任务（MVP简化：暂时不更新数据库）
-                    // testingTaskUseCase.completeTestingTask(...)
-                    
+                    // 完成检验任务
                     _uiState.value = _uiState.value.copy(
                         currentPhase = LearningPhase.COMPLETED,
                         achievement = "恭喜完成今日学习！"

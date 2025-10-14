@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiteacher.data.local.repository.StudentRepository
 import com.aiteacher.domain.model.TestingResult
 import com.aiteacher.presentation.viewmodel.LearningViewModel
 import com.aiteacher.presentation.viewmodel.LearningPhase
@@ -19,10 +20,13 @@ import com.aiteacher.presentation.viewmodel.LearningPhase
 @Composable
 fun LearningScreen(
     studentId: String,
+    studentName: String,
+    grade: Int,
     onNavigateToParent: () -> Unit = {},
     onBackToHome: () -> Unit = {},
-    viewModel: LearningViewModel = remember { LearningViewModel() }
+    studentRepository: StudentRepository
 ) {
+    val viewModel = remember { LearningViewModel(studentRepository) }
     val uiState by viewModel.uiState.collectAsState()
     
     // 初始化加载教学计划

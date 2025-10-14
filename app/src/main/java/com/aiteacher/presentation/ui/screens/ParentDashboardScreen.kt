@@ -10,6 +10,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiteacher.data.local.repository.StudentRepository
 import com.aiteacher.presentation.viewmodel.LearningViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -18,8 +19,9 @@ fun ParentDashboardScreen(
     studentId: String,
     studentName: String,
     onNavigateBack: () -> Unit = {},
-    viewModel: LearningViewModel = remember { LearningViewModel() }
+    studentRepository: StudentRepository
 ) {
+    val viewModel = remember { LearningViewModel(studentRepository) }
     val uiState by viewModel.uiState.collectAsState()
     
     // 加载学生进度概览
