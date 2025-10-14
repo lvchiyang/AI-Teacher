@@ -20,13 +20,14 @@ class base_agent:
     def __init__(
         self,
         name: str,
+        description: str = None,
         model: "llm_model" = None,
         tools: Optional[List["base_tool"]] = None,
         memory: "ContextMemory" = None,
         max_tool_iterations: int = 3,
     ):
         self.name = name
-        self.description: Optional[str] = f"An intelligent agent named {name} capable of using tools and maintaining conversation context"
+        self.description: Optional[str] = description or f"An intelligent agent named {name} capable of using tools and maintaining conversation context"
         self.model: "llm_model" = model or llm_model("qwen-turbo")
         self.tools: List["base_tool"] = tools or []
         self.memory: "ContextMemory" = memory or ContextMemory(max_memory_size=20)
