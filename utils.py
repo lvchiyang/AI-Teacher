@@ -721,21 +721,16 @@ class UserManager:
             return self.users_memory.get(self.current_user_id)
         return None
     
-    def get_user_memory(self, user_id: str = None) -> Optional[ContextMemory]:
+    def get_user_memory(self, user_id: str) -> Optional[ContextMemory]:
         """
-        获取指定用户的记忆库，如果未提供用户ID且当前无用户则自动创建
+        获取指定用户的记忆库
         
         Args:
-            user_id: 用户ID，如果为None则使用当前用户（可能自动创建）
+            user_id: 用户ID
             
         Returns:
             ContextMemory: 指定用户的记忆库
         """
-        if user_id is None:
-            if self.current_user_id is None:
-                self.auto_set_current_user()
-            user_id = self.current_user_id
-            
         return self.users_memory.get(user_id)
     
     def create_user_memory(self, user_id: str, max_memory_size: int = 100) -> ContextMemory:
