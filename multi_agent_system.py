@@ -5,7 +5,6 @@ import sys
 import os
 import json
 import logging
-from ocr import grade_homework_func
 
 # 将项目根目录添加到Python路径中
 sys.path.append(os.path.join(os.path.dirname(__file__)))
@@ -244,14 +243,34 @@ class MultiAgentSystem:
             }
         )
         
-        grade_homework_tool.set_function(grade_homework_func)
+        # 动态导入OCR功能，避免循环依赖
+        def grade_homework_func_wrapper(image_url: str) -> str:
+            try:
+                from ocr import grade_homework_func
+                return grade_homework_func(image_url)
+            except Exception as e:
+                return f"作业批改功能暂时不可用: {str(e)}"
+        
+        grade_homework_tool.set_function(grade_homework_func_wrapper)
+        
+        # 创建根据知识点查找试题工具
+        try:
+            from question_finder import create_find_questions_by_knowledge_tool
+            find_questions_tool = create_find_questions_by_knowledge_tool()
+        except Exception as e:
+            logger.error(f"创建查找试题工具失败: {e}")
+            find_questions_tool = None
         
         # 创建检验Agent
+        tools_list = [generate_question_tool, evaluate_answer_tool, grade_homework_tool]
+        if find_questions_tool:
+            tools_list.append(find_questions_tool)
+            
         testing_agent = utils.base_agent(
             name="TestingAgent",
             description="检验代理，负责出题和检验学习效果，以及批改作业",
             model=utils.llm_model("qwen-plus"),
-            tools=[generate_question_tool, evaluate_answer_tool, grade_homework_tool],
+            tools=tools_list,
             memory=self.user_manager.get_current_user_memory(),
             max_tool_iterations=3
         )
@@ -367,7 +386,7 @@ class MultiAgentSystem:
         # 创建家长Agent
         parent_agent = utils.base_agent(
             name="ParentAgent",
-        description="家长代理，负责向家长报告学习情况",
+            description="家长代理，负责向家长报告学习情况",
             model=utils.llm_model("qwen-plus"),
             tools=[generate_report_tool],
             memory=self.user_manager.get_current_user_memory(),

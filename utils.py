@@ -125,7 +125,7 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
                         "role": "tool",
                         "name": tool_name,
                         "status": "success",
-                        "content": result
+                        "content": str(result)  # 确保结果是字符串
                     })
                 except Exception as e:
                     has_error = True
@@ -240,8 +240,6 @@ class base_tool:
         tool_type: 默认为 "function"（与 test.tools_list 格式一致）
         """
         self.tool_type: str = tool_type
-        self.tool_name: str = tool.tool_name if False else tool_name  # 占位以保证格式一致
-        # 替换为实际字段赋值
         self.tool_name: str = tool_name
         self.tool_description: str = tool_description
         self.parameters: Dict[str, Any] = parameters
@@ -252,8 +250,6 @@ class base_tool:
     def set_function(self, func: callable):
         """
         设置工具的实际执行函数。
-        - 如果 accept_tool_input=True，func 应该接受 (tool_input, *args, **kwargs)。
-        - 如果 accept_tool_input=False，func 被认为接受 **kwargs（从 tool_input 字典展开）。
         """
         self.tool_function = func
 
@@ -263,7 +259,7 @@ class base_tool:
         可以覆盖或调用 set_function 来设置实际实现。这里保持为 noop 或占位说明。
         """
         if self.tool_function is None:
-            def _not_implemented(tool_input, *args, **kwargs):
+            def _not_implemented(**kwargs):
                 raise NotImplementedError("tool_function not set for tool: " + self.tool_name)
             self.tool_function = _not_implemented
 
@@ -282,7 +278,7 @@ class base_tool:
         }
 
     @classmethod
-    def from_spec(cls, spec: Dict[str, Any], tool_function: Optional[callable] = None, accept_tool_input: bool = True) -> "base_tool":
+    def from_spec(cls, spec: Dict[str, Any], tool_function: Optional[callable] = None) -> "base_tool":
         """
         从类似 test.tools_list 中的字典创建 base_tool 实例，可选地绑定实际执行函数。
         """
@@ -293,7 +289,7 @@ class base_tool:
         tool_type = spec.get("type", "function")
         t = cls(name, description, parameters, tool_type=tool_type)
         if tool_function is not None:
-            t.set_function(tool_function, accept_tool_input=accept_tool_input)
+            t.set_function(tool_function)
         return t
 
 
@@ -314,6 +310,7 @@ class llm_model:
         添加工具到模型中
         """
         self.tools.append(tool.to_tool_spec())
+        
     @classmethod
     def call_qwen_api(cls, input_text: list, **kwargs) -> Optional[str]:
         """
@@ -492,7 +489,7 @@ class ContextMemory:
             str: 记忆ID
         """
         if memory_id is None:
-            memory_id = f"memory_{len(self.memories)}"
+            memory_id = str(uuid.uuid4())  # 使用UUID确保唯一性
             
         # 创建新的记忆条目
         entry = MemoryEntry(
