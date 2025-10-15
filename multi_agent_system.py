@@ -21,12 +21,35 @@ class MultiAgentSystem:
     实现多个专门Agent协同工作，完成用户任务
     """
     
-    def __init__(self):
+    def __init__(self, user_id: str = "default"):
         """
         初始化多Agent系统
+        
+        Args:
+            user_id: 用户ID，默认为"default"
         """
+        self.user_id = user_id
+        self.user_manager = utils.UserManager()
+        self.user_manager.switch_user(user_id)
         self.agents = {}
         self.create_agents()
+        
+    def set_user_id(self, user_id: str):
+        """
+        设置用户ID并切换记忆库
+        
+        Args:
+            user_id: 用户ID
+        """
+        # 保存当前用户记忆库
+        if self.user_id:
+            self.user_manager.save_user_memory(self.user_id)
+        
+        self.user_id = user_id
+        self.user_manager.switch_user(user_id)
+        # 更新所有agents使用的记忆库
+        for agent in self.agents.values():
+            agent.memory = self.user_manager.get_current_user_memory()
         
     def create_agents(self):
         """
@@ -121,6 +144,7 @@ class MultiAgentSystem:
             description="教学代理，负责知识点讲解和例题演示",
             model=utils.llm_model("qwen-plus"),
             tools=[explain_concept_tool, give_example_tool],
+            memory=self.user_manager.get_current_user_memory(),
             max_tool_iterations=3
         )
         
@@ -209,6 +233,7 @@ class MultiAgentSystem:
             description="检验代理，负责出题和检验学习效果",
             model=utils.llm_model("qwen-plus"),
             tools=[generate_question_tool, evaluate_answer_tool],
+            memory=self.user_manager.get_current_user_memory(),
             max_tool_iterations=3
         )
         
@@ -262,6 +287,7 @@ class MultiAgentSystem:
             description="教秘代理，负责整体教学计划和进度管理",
             model=utils.llm_model("qwen-plus"),
             tools=[create_study_plan_tool],
+            memory=self.user_manager.get_current_user_memory(),
             max_tool_iterations=2
         )
         
@@ -325,6 +351,7 @@ class MultiAgentSystem:
         description="家长代理，负责向家长报告学习情况",
             model=utils.llm_model("qwen-plus"),
             tools=[generate_report_tool],
+            memory=self.user_manager.get_current_user_memory(),
             max_tool_iterations=2
         )
         
@@ -340,19 +367,51 @@ class MultiAgentSystem:
         Returns:
             str: 处理结果
         """
-        # 简单的请求路由逻辑
-        if any(keyword in user_input for keyword in ["学习", "教学", "讲解", "解释"]):
-            agent = self.agents["teaching"]
-            logger.info("将请求分发给教学Agent")
-        elif any(keyword in user_input for keyword in ["测试", "练习", "题目", "考试"]):
-            agent = self.agents["testing"]
-            logger.info("将请求分发给检验Agent")
-        elif any(keyword in user_input for keyword in ["计划", "安排", "进度"]):
-            agent = self.agents["secretary"]
-            logger.info("将请求分发给教秘Agent")
-        elif any(keyword in user_input for keyword in ["报告", "家长", "情况"]):
-            agent = self.agents["parent"]
-            logger.info("将请求分发给家长Agent")
+        # 更智能的请求路由逻辑
+        # 通过分析用户输入的语义来决定分发给哪个Agent
+        
+        # 转换为小写便于匹配
+        lower_input = user_input.lower()
+        
+        # 教学相关关键词
+        teaching_keywords = [
+            "讲解", "解释", "教学", "学习", "理解", "概念", "定义", 
+            "什么是", "什么叫", "如何理解", "不懂", "不会", "例题", "演示"
+        ]
+        
+        # 测试相关关键词
+        testing_keywords = [
+            "测试", "练习", "题目", "考试", "测验", "做题", "答题", 
+            "检查", "检验", "作业", "练习题", "试题"
+        ]
+        
+        # 计划相关关键词
+        planning_keywords = [
+            "计划", "安排", "进度", "日程", "时间表", "规划", "日历", 
+            "时间管理", "学习计划", "课程表", "时间安排"
+        ]
+        
+        # 报告相关关键词
+        reporting_keywords = [
+            "报告", "家长", "情况", "表现", "成绩", "结果", "总结", 
+            "反馈", "评估", "汇报", "学习情况", "学习报告"
+        ]
+        
+        # 统计各Agent相关关键词匹配数
+        scores = {
+            "teaching": sum(1 for keyword in teaching_keywords if keyword in lower_input),
+            "testing": sum(1 for keyword in testing_keywords if keyword in lower_input),
+            "secretary": sum(1 for keyword in planning_keywords if keyword in lower_input),
+            "parent": sum(1 for keyword in reporting_keywords if keyword in lower_input)
+        }
+        
+        # 找到匹配度最高的Agent
+        best_agent = max(scores, key=scores.get)
+        
+        # 如果最高分大于0，使用对应的Agent，否则使用默认Agent
+        if scores[best_agent] > 0:
+            agent = self.agents[best_agent]
+            logger.info(f"将请求分发给{agent.name} (匹配关键词数: {scores[best_agent]})")
         else:
             # 默认使用教秘Agent
             agent = self.agents["secretary"]
@@ -379,28 +438,42 @@ class MultiAgentSystem:
         print("请输入您的学习需求，输入'退出'结束对话")
         print("=" * 60)
         
-        while True:
-            try:
-                user_input = input("\n您: ").strip()
-                
-                if user_input.lower() in ['退出', 'quit', 'exit', 'bye']:
-                    print("AI教师: 谢谢使用，再见!")
+        try:
+            while True:
+                try:
+                    user_input = input("\n您: ").strip()
+                    
+                    if user_input.lower() in ['退出', 'quit', 'exit', 'bye']:
+                        # 退出前保存当前用户记忆库
+                        if self.user_id:
+                            self.user_manager.save_user_memory(self.user_id)
+                            self.user_manager.save_all_memories()
+                        print("AI教师: 谢谢使用，再见!")
+                        break
+                    
+                    if not user_input:
+                        print("AI教师: 请输入有效内容")
+                        continue
+                    
+                    # 处理用户请求
+                    response = self.process_user_request(user_input)
+                    print(f"AI教师: {response}")
+                    
+                except KeyboardInterrupt:
+                    # 中断前保存当前用户记忆库
+                    if self.user_id:
+                        self.user_manager.save_user_memory(self.user_id)
+                        self.user_manager.save_all_memories()
+                    print("\n\nAI教师: 再见!")
                     break
-                
-                if not user_input:
-                    print("AI教师: 请输入有效内容")
-                    continue
-                
-                # 处理用户请求
-                response = self.process_user_request(user_input)
-                print(f"AI教师: {response}")
-                
-            except KeyboardInterrupt:
-                print("\n\nAI教师: 再见!")
-                break
-            except Exception as e:
-                logger.error(f"运行时出错: {e}")
-                print(f"AI教师: 发生未知错误: {str(e)}")
+                except Exception as e:
+                    logger.error(f"运行时出错: {e}")
+                    print(f"AI教师: 发生未知错误: {str(e)}")
+        finally:
+            # 确保程序结束前保存所有记忆库
+            if self.user_id:
+                self.user_manager.save_user_memory(self.user_id)
+                self.user_manager.save_all_memories()
 
 
 def main():

@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any
 from openai import OpenAI
 from dataclasses import dataclass, field
 from datetime import datetime
+import uuid
 
 
 class base_agent:
@@ -30,7 +31,7 @@ class base_agent:
         self.description: Optional[str] = description or f"An intelligent agent named {name} capable of using tools and maintaining conversation context"
         self.model: "llm_model" = model or llm_model("qwen-turbo")
         self.tools: List["base_tool"] = tools or []
-        self.memory: "ContextMemory" = memory or ContextMemory(max_memory_size=20)
+        self.memory: "ContextMemory" = memory or UserManager().get_current_user_memory() or ContextMemory(max_memory_size=20)
         self.max_tool_iterations = max(1, min(max_tool_iterations, 10))  # 限制在合理范围内
         self.running: bool = False
         self.prompt_head: Dict = {
@@ -656,3 +657,214 @@ class ContextMemory:
                 for entry in recent_memories
             ]
         return context
+
+
+class UserManager:
+    """
+    用户管理类，用于管理不同用户的记忆库
+    """
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(UserManager, cls).__new__(cls)
+        return cls._instance
+    
+    def __init__(self):
+        if not self._initialized:
+            self.users_memory: Dict[str, ContextMemory] = {}
+            self.current_user_id: Optional[str] = None
+            self.default_memory_size = 100
+            self.memory_storage_path = "user_memories"
+            self._initialized = True
+            # 创建存储目录
+            os.makedirs(self.memory_storage_path, exist_ok=True)
+            # 加载已存在的记忆库
+            self.load_all_memories()
+    
+    def auto_set_current_user(self) -> str:
+        """
+        自动设置当前用户，如果没有用户则创建新用户
+        
+        Returns:
+            str: 用户ID
+        """
+        if self.current_user_id is None:
+            self.current_user_id = str(uuid.uuid4())
+            self.users_memory[self.current_user_id] = ContextMemory(self.default_memory_size)
+            print(f"为新用户分配ID: {self.current_user_id}")
+        return self.current_user_id
+    
+    def set_current_user(self, user_id: str) -> None:
+        """
+        设置当前用户
+        
+        Args:
+            user_id: 用户ID
+        """
+        self.current_user_id = user_id
+        # 如果用户记忆库不存在，则创建
+        if user_id not in self.users_memory:
+            self.users_memory[user_id] = ContextMemory(self.default_memory_size)
+    
+    def get_current_user_memory(self) -> Optional[ContextMemory]:
+        """
+        获取当前用户的记忆库，如果未设置用户则自动创建
+        
+        Returns:
+            ContextMemory: 当前用户的记忆库
+        """
+        if self.current_user_id is None:
+            self.auto_set_current_user()
+        if self.current_user_id:
+            return self.users_memory.get(self.current_user_id)
+        return None
+    
+    def get_user_memory(self, user_id: str = None) -> Optional[ContextMemory]:
+        """
+        获取指定用户的记忆库，如果未提供用户ID且当前无用户则自动创建
+        
+        Args:
+            user_id: 用户ID，如果为None则使用当前用户（可能自动创建）
+            
+        Returns:
+            ContextMemory: 指定用户的记忆库
+        """
+        if user_id is None:
+            if self.current_user_id is None:
+                self.auto_set_current_user()
+            user_id = self.current_user_id
+            
+        return self.users_memory.get(user_id)
+    
+    def create_user_memory(self, user_id: str, max_memory_size: int = 100) -> ContextMemory:
+        """
+        为用户创建记忆库
+        
+        Args:
+            user_id: 用户ID
+            max_memory_size: 最大记忆条目数量
+            
+        Returns:
+            ContextMemory: 创建的记忆库
+        """
+        memory = ContextMemory(max_memory_size)
+        self.users_memory[user_id] = memory
+        return memory
+    
+    def switch_user(self, user_id: str = None) -> ContextMemory:
+        """
+        切换当前用户，如果未提供用户ID则自动创建新用户
+        
+        Args:
+            user_id: 用户ID，如果为None则自动生成
+            
+        Returns:
+            ContextMemory: 切换到的用户记忆库
+        """
+        if user_id is None:
+            user_id = self.auto_set_current_user()
+        else:
+            self.set_current_user(user_id)
+        return self.users_memory[user_id]
+    
+    def save_user_memory(self, user_id: str) -> None:
+        """
+        保存指定用户的记忆库到本地文件
+        
+        Args:
+            user_id: 用户ID
+        """
+        if user_id in self.users_memory:
+            memory = self.users_memory[user_id]
+            file_path = os.path.join(self.memory_storage_path, f"{user_id}.json")
+            
+            # 转换记忆条目为可序列化的格式
+            memory_data = []
+            for entry in memory.memories:
+                memory_data.append({
+                    "id": entry.id,
+                    "content": entry.content,
+                    "timestamp": entry.timestamp.isoformat(),
+                    "metadata": entry.metadata
+                })
+            
+            # 保存到文件
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(memory_data, f, ensure_ascii=False, indent=2)
+    
+    def load_user_memory(self, user_id: str) -> Optional[ContextMemory]:
+        """
+        从本地文件加载指定用户的记忆库
+        
+        Args:
+            user_id: 用户ID
+            
+        Returns:
+            ContextMemory: 加载的记忆库，如果文件不存在则返回None
+        """
+        file_path = os.path.join(self.memory_storage_path, f"{user_id}.json")
+        
+        if not os.path.exists(file_path):
+            return None
+            
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                memory_data = json.load(f)
+            
+            memory = ContextMemory(self.default_memory_size)
+            
+            # 从文件数据重建记忆条目
+            for entry_data in memory_data:
+                entry = MemoryEntry(
+                    id=entry_data["id"],
+                    content=entry_data["content"],
+                    timestamp=datetime.fromisoformat(entry_data["timestamp"]),
+                    metadata=entry_data["metadata"]
+                )
+                memory.memories.append(entry)
+            
+            # 重建索引
+            memory._rebuild_index()
+            
+            # 存储到用户记忆库中
+            self.users_memory[user_id] = memory
+            return memory
+        except Exception as e:
+            print(f"加载用户 {user_id} 的记忆库时出错: {e}")
+            return None
+    
+    def load_all_memories(self) -> None:
+        """
+        加载所有用户的记忆库
+        """
+        if not os.path.exists(self.memory_storage_path):
+            return
+            
+        for filename in os.listdir(self.memory_storage_path):
+            if filename.endswith(".json"):
+                user_id = filename[:-5]  # 移除 .json 后缀
+                self.load_user_memory(user_id)
+    
+    def save_all_memories(self) -> None:
+        """
+        保存所有用户的记忆库到本地文件
+        """
+        for user_id in self.users_memory:
+            self.save_user_memory(user_id)
+
+    def get_or_create_user(self) -> str:
+        """
+        获取当前用户ID，如果没有设置则自动创建新用户
+        
+        Returns:
+            str: 用户ID
+        """
+        if self.current_user_id is None:
+            # 自动生成新的用户ID
+            self.current_user_id = str(uuid.uuid4())
+            # 为新用户创建记忆库
+            self.users_memory[self.current_user_id] = ContextMemory(self.default_memory_size)
+            print(f"为新用户分配ID: {self.current_user_id}")
+        return self.current_user_id
