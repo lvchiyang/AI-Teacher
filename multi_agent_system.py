@@ -5,6 +5,7 @@ import sys
 import os
 import json
 import logging
+from ocr import grade_homework_func
 
 # 将项目根目录添加到Python路径中
 sys.path.append(os.path.join(os.path.dirname(__file__)))
@@ -227,12 +228,30 @@ class MultiAgentSystem:
         
         evaluate_answer_tool.set_function(evaluate_answer_func)
         
+        # 创建作业批改工具
+        grade_homework_tool = utils.base_tool(
+            tool_name="grade_homework",
+            tool_description="批改作业照片",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "image_url": {
+                        "type": "string",
+                        "description": "作业照片的url地址"
+                    }
+                },
+                "required": ["image_url"]
+            }
+        )
+        
+        grade_homework_tool.set_function(grade_homework_func)
+        
         # 创建检验Agent
         testing_agent = utils.base_agent(
             name="TestingAgent",
-            description="检验代理，负责出题和检验学习效果",
+            description="检验代理，负责出题和检验学习效果，以及批改作业",
             model=utils.llm_model("qwen-plus"),
-            tools=[generate_question_tool, evaluate_answer_tool],
+            tools=[generate_question_tool, evaluate_answer_tool, grade_homework_tool],
             memory=self.user_manager.get_current_user_memory(),
             max_tool_iterations=3
         )
@@ -382,7 +401,7 @@ class MultiAgentSystem:
         # 测试相关关键词
         testing_keywords = [
             "测试", "练习", "题目", "考试", "测验", "做题", "答题", 
-            "检查", "检验", "作业", "练习题", "试题"
+            "检查", "检验", "作业", "练习题", "试题", "批改", "批阅"
         ]
         
         # 计划相关关键词
