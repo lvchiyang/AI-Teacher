@@ -10,6 +10,7 @@ import com.aiteacher.presentation.ui.screens.HomeScreen
 import com.aiteacher.presentation.ui.screens.ProfileScreen
 import com.aiteacher.presentation.ui.screens.LearningScreen
 import com.aiteacher.presentation.ui.screens.ParentDashboardScreen
+import com.aiteacher.presentation.ui.screens.TeachingOutlineScreen
 
 @Composable
 fun AITeacherNavigation(
@@ -34,8 +35,8 @@ fun AITeacherNavigation(
         composable(Screen.Home.route) {
             HomeScreen(
                 onNavigateToMath = {
-                    // 直接从主页跳转到学习页面，使用默认学生信息
-                    navController.navigate(Screen.Learning.createRoute("student_default", "默认学生", 7))
+                    // 从主页跳转到教学大纲页面
+                    navController.navigate(Screen.TeachingOutline.createRoute("student_default", "默认学生", 7))
                 },
                 onNavigateToProfile = {
                     navController.navigate(Screen.Profile.route)
@@ -58,6 +59,27 @@ fun AITeacherNavigation(
                         popUpTo(Screen.Home.route) { inclusive = true }
                     }
                 }
+            )
+        }
+        
+        composable(Screen.TeachingOutline.route) { backStackEntry ->
+            val studentId = backStackEntry.arguments?.getString("studentId") ?: ""
+            val studentName = backStackEntry.arguments?.getString("studentName") ?: ""
+            val grade = backStackEntry.arguments?.getString("grade")?.toIntOrNull() ?: 7
+            
+            TeachingOutlineScreen(
+                studentId = studentId,
+                studentName = studentName,
+                grade = grade,
+                onNavigateToLearning = { id, name, g ->
+                    navController.navigate(Screen.Learning.createRoute(id, name, g))
+                },
+                onBackToHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.TeachingOutline.route) { inclusive = true }
+                    }
+                },
+                studentRepository = studentRepository
             )
         }
         

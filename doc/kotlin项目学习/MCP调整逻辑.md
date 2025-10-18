@@ -1,0 +1,5 @@
+我不希望在baseAgent中直接通过 @MCPServerMain.kt 的方法实例化server，应为这样就是默认所有agent都可以使用所有工具，我想实现在实例化Agent的时候再去定义每个Agent可以使用什么工具。
+
+在baseAgent的runOnce函数中调用了工具的处理流程，这里需要通过 server调用工具。
+BaseTool类可以删除了，因为现在我们使用的是MCP官方的SDK，而不再是自己定义的工具。
+在baseAgent实例化的时候，一起实例化了llmservice，而llmservice中也需要使用MCP server，因为prompt中需要server提供工具的使用信息。

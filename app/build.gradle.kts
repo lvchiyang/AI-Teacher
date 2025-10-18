@@ -80,6 +80,21 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     
+    // OpenAI compatible SDK for DashScope
+    implementation("com.openai:openai-java:0.25.0")
+    
+    // JSON serialization for tool call parsing
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    
+    // MCP Kotlin SDK
+    implementation("io.modelcontextprotocol:kotlin-sdk:0.6.0")
+    
+    // Ktor engines for MCP
+    implementation("io.ktor:ktor-client-cio:2.3.11")
+    implementation("io.ktor:ktor-server-netty:2.3.11")
+    implementation("io.ktor:ktor-server-sse:2.3.11")
+    implementation("io.ktor:ktor-websockets:2.3.11")
+    
     // Room Database
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
