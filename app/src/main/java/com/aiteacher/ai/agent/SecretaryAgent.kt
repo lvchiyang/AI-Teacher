@@ -7,12 +7,13 @@ import com.aiteacher.ai.service.LLMOutput
  * 教秘Agent - 负责制定教学计划
  */
 class SecretaryAgent(
-    model: LLMModel = LLMModel("qwen-max")
+    model: LLMModel = LLMModel("qwen-max"),
+    configFilePath: String = "app/src/main/java/com/aiteacher/ai/mcp/server/mcp.json"
 ) : BaseAgent(
     name = "SecretaryAgent",
     description = "教秘代理，负责整体教学计划和进度管理",
     model = model,
-    availableTools = listOf("knowledge_base") // 只允许使用知识库工具
+    configFilePath = configFilePath
 ) {
     
     override fun buildSystemPrompt(): String {
@@ -35,16 +36,7 @@ class SecretaryAgent(
         """.trimIndent()
     }
     
-    override suspend fun callModel(prompt: List<Map<String, String>>): String {
-        val result = model.generateText(prompt)
-        return result?.content ?: "Error: model did not return a valid response."
-    }
-    
-    override fun parseToolCalls(modelOutput: Any?): List<Map<String, Any>> {
-        // TODO: 实现工具调用解析
-        // 这里先返回空列表
-        return emptyList()
-    }
+    // SecretaryAgent不需要重写这些方法，使用BaseAgent的默认实现
     
     /**
      * 制定教学计划
