@@ -284,7 +284,7 @@ class MultiAgentSystem:
         # 创建制定学习计划工具
         create_study_plan_tool = utils.base_tool(
             tool_name="create_study_plan",
-            tool_description="制定学习计划",
+            tool_description="创建学习计划",
             parameters={
                 "type": "object",
                 "properties": {
@@ -319,12 +319,70 @@ class MultiAgentSystem:
         
         create_study_plan_tool.set_function(create_study_plan_func)
         
+        # 创建调用教学Agent工具
+        call_teaching_agent_tool = utils.base_tool(
+            tool_name="call_teaching_agent",
+            tool_description="调用教学Agent进行知识点讲解",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "request": {
+                        "type": "string",
+                        "description": "需要教学Agent处理的请求内容"
+                    }
+                },
+                "required": ["request"]
+            }
+        )
+        
+        def call_teaching_agent_func(request: str) -> str:
+            # 获取教学Agent并执行请求
+            teaching_agent = self.agents.get("teaching")
+            if not teaching_agent:
+                return "错误: 教学Agent不可用"
+            try:
+                response = teaching_agent.run_once(request)
+                return response
+            except Exception as e:
+                return f"调用教学Agent时出错: {str(e)}"
+        
+        call_teaching_agent_tool.set_function(call_teaching_agent_func)
+        
+        # 创建调用检测Agent工具
+        call_testing_agent_tool = utils.base_tool(
+            tool_name="call_testing_agent",
+            tool_description="调用检测Agent进行练习或测试",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "request": {
+                        "type": "string",
+                        "description": "需要检测Agent处理的请求内容"
+                    }
+                },
+                "required": ["request"]
+            }
+        )
+        
+        def call_testing_agent_func(request: str) -> str:
+            # 获取检测Agent并执行请求
+            testing_agent = self.agents.get("testing")
+            if not testing_agent:
+                return "错误: 检测Agent不可用"
+            try:
+                response = testing_agent.run_once(request)
+                return response
+            except Exception as e:
+                return f"调用检测Agent时出错: {str(e)}"
+        
+        call_testing_agent_tool.set_function(call_testing_agent_func)
+        
         # 创建教秘Agent
         secretary_agent = utils.base_agent(
             name="SecretaryAgent",
             description="教秘代理，负责整体教学计划和进度管理",
             model=utils.llm_model("qwen-plus"),
-            tools=[create_study_plan_tool],
+            tools=[create_study_plan_tool, call_teaching_agent_tool, call_testing_agent_tool],
             memory=self.user_manager.get_current_user_memory(),
             max_tool_iterations=2
         )

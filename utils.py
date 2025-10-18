@@ -29,11 +29,23 @@ class base_agent:
     ):
         self.name = name
         self.description: Optional[str] = description or f"An intelligent agent named {name} capable of using tools and maintaining conversation context"
-        self.model: "llm_model" = model or llm_model("qwen-turbo")
+        # 初始化工具列表
         self.tools: List["base_tool"] = tools or []
         self.memory: "ContextMemory" = memory or UserManager().get_current_user_memory() or ContextMemory(max_memory_size=20)
         self.max_tool_iterations = max(1, min(max_tool_iterations, 10))  # 限制在合理范围内
         self.running: bool = False
+        
+        # 如果提供了工具列表，确保将这些工具传递给模型
+        tool_specs = [tool.to_tool_spec() for tool in self.tools] if self.tools else []
+        
+        # 初始化模型，将工具规格传入
+        self.model: "llm_model" = model or llm_model("qwen-turbo", tools=tool_specs)
+        
+        # 如果模型已经存在但没有工具，需要将工具添加到模型中
+        if self.tools and not self.model.tools:
+            for tool in self.tools:
+                self.model.add_tool(tool)
+        
         self.prompt_head: Dict = {
             "role": "system",
             "content": f"""You are {name}, an intelligent assistant with access to various tools.
