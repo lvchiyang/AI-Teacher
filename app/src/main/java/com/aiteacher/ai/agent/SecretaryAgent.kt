@@ -8,12 +8,12 @@ import com.aiteacher.ai.service.LLMOutput
  */
 class SecretaryAgent(
     model: LLMModel = LLMModel("qwen-max"),
-    configFilePath: String = "app/src/main/java/com/aiteacher/ai/mcp/server/mcp.json"
+    enableMcp: Boolean = true
 ) : BaseAgent(
     name = "SecretaryAgent",
     description = "教秘代理，负责整体教学计划和进度管理",
     model = model,
-    configFilePath = configFilePath
+    mcpConfigPath = if (enableMcp) "app/src/main/java/com/aiteacher/ai/mcp/server/secretary-config.json" else null
 ) {
     
     override fun buildSystemPrompt(): String {

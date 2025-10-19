@@ -159,10 +159,9 @@ class MCPClientManager(
                 // 从实际连接的服务器获取工具列表
                 val serverTools = client.listTools()
                 serverTools.forEach { toolName ->
-                    // 解决同名工具冲突问题，添加serverId前缀
-                    val globalName = "${serverDef.id}#$toolName"
-                    toolToServerMap[globalName] = serverDef.id
-                    allAvailableTools.add(globalName)
+                    // 直接使用工具名，因为每个Agent的配置文件中没有重名工具
+                    toolToServerMap[toolName] = serverDef.id
+                    allAvailableTools.add(toolName)
                 }
                 
                 println("Connected to server '${serverDef.id}' with tools: $serverTools")
@@ -178,13 +177,30 @@ class MCPClientManager(
      * 加载配置文件
      */
     private fun loadConfig(): ConfigSnapshot {
-        val configFile = Paths.get(configFilePath)
+        val configFile = when {
+            configFilePath.startsWith("classpath:") -> {
+                // 从classpath加载
+                val resourceName = configFilePath.substring(11)
+                val resource = this::class.java.classLoader.getResource(resourceName)
+                    ?: throw IllegalStateException("Resource not found in classpath: $resourceName")
+                Paths.get(resource.toURI())
+            }
+            configFilePath.startsWith("/") -> {
+                // 绝对路径
+                Paths.get(configFilePath)
+            }
+            else -> {
+                // 相对路径，相对于项目根目录
+                Paths.get(System.getProperty("user.dir"), configFilePath)
+            }
+        }
+        
         return try {
             if (Files.exists(configFile)) {
                 val content = Files.readString(configFile)
                 Json.decodeFromString<ConfigSnapshot>(content)
             } else {
-                throw IllegalStateException("Config file not found: $configFilePath")
+                throw IllegalStateException("Config file not found: $configFilePath (resolved to: $configFile)")
             }
         } catch (e: Exception) {
             println("Error loading config file '$configFilePath': ${e.message}")
@@ -203,20 +219,16 @@ class MCPClientManager(
      * 调用工具
      */
     suspend fun callTool(toolName: String, parameters: Map<String, Any>): String {
-        // 处理带前缀的工具名称
-        val actualToolName = if (toolName.contains("#")) {
-            toolName.substringAfter("#")
-        } else {
-            toolName
-        }
-        
-        val serverId = toolToServerMap[toolName]
+        // 1. 查路由表：这个工具在哪个服务器？
+        val serverId = toolToServerMap[toolName]  // 比如 "add" -> "math-server"
             ?: throw IllegalArgumentException("Tool '$toolName' not available")
         
-        val client = clients[serverId]
+        // 2. 找到对应的客户端
+        val client = clients[serverId]  // 获取math-server的客户端
             ?: throw IllegalArgumentException("Client for server '$serverId' not found")
         
-        return client.callTool(actualToolName, parameters)
+        // 3. 通过正确的客户端调用工具
+        return client.callTool(toolName, parameters)
     }
     
     /**
@@ -298,3 +310,36 @@ data class ServerDef(
 data class ConfigSnapshot(
     val servers: List<ServerDef>
 )
+
+/**
+ * MCPClientManager工厂方法
+ */
+object MCPClientManagerFactory {
+    /**
+     * 创建MCPClientManager实例
+     * @param hostName Host名称
+     * @param configPath 配置文件路径，支持：
+     *   - 相对路径: "config/mcp.json"
+     *   - 绝对路径: "/path/to/config.json"
+     *   - classpath: "classpath:config/mcp.json"
+     */
+    suspend fun create(hostName: String, configPath: String): MCPClientManager {
+        val manager = MCPClientManager(hostName, configPath)
+        manager.start()
+        return manager
+    }
+    
+    /**
+     * 创建SecretaryAgent的MCPClientManager
+     */
+    suspend fun createForSecretary(): MCPClientManager {
+        return create("SecretaryAgent", "app/src/main/java/com/aiteacher/ai/mcp/server/secretary-config.json")
+    }
+    
+    /**
+     * 创建TeachingAgent的MCPClientManager
+     */
+    suspend fun createForTeaching(): MCPClientManager {
+        return create("TeachingAgent", "app/src/main/java/com/aiteacher/ai/mcp/server/teaching-config.json")
+    }
+}

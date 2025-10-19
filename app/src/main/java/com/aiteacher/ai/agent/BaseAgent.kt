@@ -11,72 +11,144 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.collections.mutableListOf
 
 /**
- * ÖÇÄÜÌå»ù´¡Àà
- * ÍêÈ«¶ÔÓ¦Python°æ±¾µÄbase_agentÀà
- * - Ê¹ÓÃ llm_model ×÷ÎªºËĞÄÍÆÀíÄ£ĞÍ
- * - Ö§³ÖÍâÎ§¹¤¾ß×¢²áÓëµ÷ÓÃ£¨base_tool£©
- * - ¼òµ¥ÔËĞĞÖÜÆÚ£º½ÓÊÕÓÃ»§ÊäÈë -> µ÷ÓÃÄ£ĞÍ -> ÈçÄ£ĞÍÒªÇóµ÷ÓÃ¹¤¾ßÔòÖ´ĞĞ¹¤¾ß -> ½«¹¤¾ß½á¹û·´À¡¸øÄ£ĞÍ -> ·µ»Ø×îÖÕÏìÓ¦
+ * æ™ºèƒ½ä½“åŸºç¡€ç±»
+ * å®Œå…¨å¯¹åº”Pythonç‰ˆæœ¬çš„base_agentç±»
+ * - ä½¿ç”¨ llm_model ä½œä¸ºæ ¸å¿ƒæ¨ç†æ¨¡å‹
+ * - æ”¯æŒå¤–å›´å·¥å…·æ³¨å†Œä¸è°ƒç”¨ï¼ˆbase_toolï¼‰
+ * - ç®€å•è¿è¡Œå‘¨æœŸï¼šæ¥æ”¶ç”¨æˆ·è¾“å…¥ -> è°ƒç”¨æ¨¡å‹ -> å¦‚æ¨¡å‹è¦æ±‚è°ƒç”¨å·¥å…·åˆ™æ‰§è¡Œå·¥å…· -> å°†å·¥å…·ç»“æœåé¦ˆç»™æ¨¡å‹ -> è¿”å›æœ€ç»ˆå“åº”
  */
 abstract class BaseAgent(
     val name: String,
     description: String? = null,
     protected val model: LLMModel = LLMModel("qwen-max"),
-    private val configFilePath: String = "app/src/main/java/com/aiteacher/ai/mcp/server/mcp.json", // Ä¬ÈÏÅäÖÃÎÄ¼şÂ·¾¶
+    private val mcpConfigPath: String? = null, // nullè¡¨ç¤ºä¸ä½¿ç”¨MCP
     memory: ContextMemory = UserManager().getCurrentUserMemory() ?: ContextMemory(maxMemorySize = 20),
     maxToolIterations: Int = 3
 ) {
     val description: String = description ?: "An intelligent agent named $name capable of using tools and maintaining conversation context"
     
-    // Agent¿ÉÓÃµÄ¹¤¾ßÁĞ±í - ÏÖÔÚ´ÓMCPClientManager¶¯Ì¬»ñÈ¡
-    protected val availableTools: List<String> = emptyList() // ½«ÔÚinitÖĞ´ÓMCPClientManager»ñÈ¡
+    // Agentå¯ç”¨çš„å·¥å…·åˆ—è¡¨ - ä»MCPClientManageråŠ¨æ€è·å–
+    protected lateinit var availableTools: List<String>
     protected val memory: ContextMemory = memory
-    protected val maxToolIterations: Int = maxOf(1, minOf(maxToolIterations, 10)) // ÏŞÖÆÔÚºÏÀí·¶Î§ÄÚ
+    protected val maxToolIterations: Int = maxOf(1, minOf(maxToolIterations, 10)) // é™åˆ¶åœ¨åˆç†èŒƒå›´å†…
     protected val running: AtomicBoolean = AtomicBoolean(false)
     
-    // MCP Client¹ÜÀíÆ÷ - Ã¿¸öAgentÎ¬»¤×Ô¼ºµÄClient¼¯ºÏ
-    private val mcpClientManager = MCPClientManager(name, configFilePath)
+    // MCP Clientç®¡ç†å™¨ - æ¯ä¸ªAgentç»´æŠ¤è‡ªå·±çš„Clienté›†åˆï¼ˆå¯é€‰ï¼‰
+    private val mcpClientManager: MCPClientManager? = mcpConfigPath?.let { 
+        MCPClientManager(name, it) 
+    }
     
     init {
-        // ½«¿ÉÓÃ¹¤¾ß×¢²áµ½LLMÄ£ĞÍÖĞ
+        // åˆå§‹åŒ–MCPClientManagerå¹¶è·å–å¯ç”¨å·¥å…·ï¼ˆå¦‚æœé…ç½®äº†MCPï¼‰
         kotlinx.coroutines.runBlocking {
-            mcpClientManager.start()
-            val toolSpecs = mcpClientManager.getToolSpecs()
-            toolSpecs.forEach { spec ->
-                model.addTool(spec)
+            if (mcpClientManager != null) {
+                try {
+                    mcpClientManager.start()
+                    
+                    // è·å–å¯ç”¨å·¥å…·åˆ—è¡¨
+                    availableTools = mcpClientManager.getAllTools()
+                    
+                    // å°†å·¥å…·è§„èŒƒæ³¨å†Œåˆ°LLMæ¨¡å‹ä¸­
+                    val toolSpecs = mcpClientManager.getToolSpecs()
+                    toolSpecs.forEach { spec ->
+                        model.addTool(spec)
+                    }
+                    
+                    println("Agent '$name' initialized with MCP tools: $availableTools")
+                } catch (e: Exception) {
+                    // MCPåˆå§‹åŒ–å¤±è´¥ï¼Œé™çº§ä¸ºæ— å·¥å…·æ¨¡å¼
+                    println("Warning: MCP initialization failed for Agent '$name': ${e.message}")
+                    println("Agent '$name' will run in no-tools mode")
+                    availableTools = emptyList()
+                }
+            } else {
+                // æ²¡æœ‰é…ç½®MCPï¼Œç›´æ¥è¿è¡Œåœ¨æ— å·¥å…·æ¨¡å¼
+                availableTools = emptyList()
+                println("Agent '$name' initialized without MCP (no-tools mode)")
             }
         }
     }
     
-    // ÏµÍ³ÌáÊ¾Í·
-    protected val promptHead: Map<String, String> = mapOf(
-        "role" to "system",
-        "content" to """You are $name, an intelligent assistant with access to various tools.
+    // ç³»ç»Ÿæç¤ºå¤´ - æ ¹æ®æ˜¯å¦æœ‰å·¥å…·åŠ¨æ€ç”Ÿæˆ
+    protected val promptHead: Map<String, String> by lazy {
+        val content = if (availableTools.isNotEmpty()) {
+            """You are $name, an intelligent assistant with access to various tools.
+Available tools: ${availableTools.joinToString(", ")}
 You can use these tools when needed to accomplish tasks. Always follow these guidelines:
 1. Use tools only when necessary
 2. When using a tool, provide clear and complete parameters
 3. After receiving tool results, incorporate them into your response appropriately
 4. If a task cannot be completed, explain why clearly"""
-    )
+        } else {
+            """You are $name, an intelligent assistant.
+You do not have access to any external tools, so you must rely on your knowledge and reasoning abilities to help users.
+Please provide helpful responses based on your training and knowledge."""
+        }
+        
+        mapOf(
+            "role" to "system",
+            "content" to content
+        )
+    }
     
-    // ×´Ì¬¹ÜÀí
+    // çŠ¶æ€ç®¡ç†
     private val _state = MutableStateFlow(AgentState.IDLE)
     val state: StateFlow<AgentState> = _state.asStateFlow()
     
     
     /**
-     * µ÷ÓÃMCP¹¤¾ß
+     * è°ƒç”¨MCPå·¥å…·
      */
     suspend fun callTool(toolName: String, kwargs: Map<String, Any> = emptyMap()): Any {
-        if (!mcpClientManager.isToolAvailable(toolName)) {
-            throw IllegalArgumentException("Tool '$toolName' is not available for this agent")
+        // æ£€æŸ¥æ˜¯å¦é…ç½®äº†MCP
+        if (mcpClientManager == null) {
+            throw IllegalStateException("Agent '$name' is not configured with MCP. Cannot call tools.")
         }
         
-        // Í¨¹ıMCPClientManagerµ÷ÓÃ¹¤¾ß
+        // æ£€æŸ¥æ˜¯å¦æœ‰å·¥å…·å¯ç”¨
+        if (availableTools.isEmpty()) {
+            throw IllegalStateException("Agent '$name' has no tools available. Running in no-tools mode.")
+        }
+        
+        // ä½¿ç”¨MCPClientManageræ£€æŸ¥å·¥å…·å¯ç”¨æ€§
+        if (!mcpClientManager.isToolAvailable(toolName)) {
+            throw IllegalArgumentException("Tool '$toolName' is not available for this agent. Available tools: $availableTools")
+        }
+        
+        // é€šè¿‡MCPClientManagerè°ƒç”¨å·¥å…·
         return mcpClientManager.callTool(toolName, kwargs)
     }
     
     /**
-     * ¸ù¾İ¼ÇÒäºÍ¹¤¾ßĞÅÏ¢¹¹ÔìÌá½»¸øÄ£ĞÍµÄ prompt
+     * è·å–Agentå¯ç”¨çš„å·¥å…·åˆ—è¡¨
+     */
+    fun getAvailableTools(): List<String> {
+        return availableTools
+    }
+    
+    /**
+     * æ£€æŸ¥å·¥å…·æ˜¯å¦å¯ç”¨
+     */
+    fun isToolAvailable(toolName: String): Boolean {
+        return mcpClientManager?.isToolAvailable(toolName) ?: false
+    }
+    
+    /**
+     * æ£€æŸ¥æ˜¯å¦è¿è¡Œåœ¨æ— å·¥å…·æ¨¡å¼
+     */
+    fun isNoToolsMode(): Boolean {
+        return mcpClientManager == null || availableTools.isEmpty()
+    }
+    
+    /**
+     * æ£€æŸ¥æ˜¯å¦é…ç½®äº†MCP
+     */
+    fun isMcpEnabled(): Boolean {
+        return mcpClientManager != null
+    }
+    
+    /**
+     * æ ¹æ®è®°å¿†å’Œå·¥å…·ä¿¡æ¯æ„é€ æäº¤ç»™æ¨¡å‹çš„ prompt
      */
     protected fun buildPrompt(n: Int? = null): List<Map<String, String>> {
         val ctx = if (n == null) {
@@ -88,14 +160,14 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
     }
     
     /**
-     * µ¥´ÎÔËĞĞ£º
-     * - ¹¹Ôì prompt£¨°üº¬ÉÏÏÂÎÄ£©
-     * - µ÷ÓÃÄ£ĞÍ
-     * - Èç¹ûÄ£ĞÍÇëÇó¹¤¾ßµ÷ÓÃ£¬Ö´ĞĞ¹¤¾ß²¢½«½á¹û·´À¡¸øÄ£ĞÍ£¬×î¶àµü´ú maxToolIterations ´Î
-     * - ·µ»Ø×îÖÕÎÄ±¾ÏìÓ¦
+     * å•æ¬¡è¿è¡Œï¼š
+     * - æ„é€  promptï¼ˆåŒ…å«ä¸Šä¸‹æ–‡ï¼‰
+     * - è°ƒç”¨æ¨¡å‹
+     * - å¦‚æœæ¨¡å‹è¯·æ±‚å·¥å…·è°ƒç”¨ï¼Œæ‰§è¡Œå·¥å…·å¹¶å°†ç»“æœåé¦ˆç»™æ¨¡å‹ï¼Œæœ€å¤šè¿­ä»£ maxToolIterations æ¬¡
+     * - è¿”å›æœ€ç»ˆæ–‡æœ¬å“åº”
      */
     suspend fun runOnce(userInput: String): Result<String> {
-        // ·ÀÓùĞÔ¼ì²é×î´óµü´ú´ÎÊı
+        // é˜²å¾¡æ€§æ£€æŸ¥æœ€å¤§è¿­ä»£æ¬¡æ•°
         if (maxToolIterations <= 0) {
             println("Warning: max_tool_iterations should be positive integer.")
             return Result.failure(IllegalArgumentException("Invalid max_tool_iterations setting."))
@@ -104,12 +176,12 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
         _state.value = AgentState.RUNNING
         
         return try {
-            // ¼ÇÂ¼ÓÃ»§ÊäÈëµ½¼ÇÒä
+            // è®°å½•ç”¨æˆ·è¾“å…¥åˆ°è®°å¿†
             memory.addMemory(mapOf("role" to "user", "content" to userInput))
             val prompt = buildPrompt()
             val modelOutput = model.generateText(prompt)
             
-            // Ğ£ÑéÄ£ĞÍÊä³öºÏ·¨ĞÔ
+            // æ ¡éªŒæ¨¡å‹è¾“å‡ºåˆæ³•æ€§
             if (modelOutput == null) {
                 println("Error: Model returned invalid output")
                 return Result.failure(Exception("Model did not return a valid response."))
@@ -118,7 +190,7 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
             var iterations = 0
             var currentOutput = modelOutput
             
-            // Ñ­»·½âÎöÄ£ĞÍÊä³ö£¬¿´ÊÇ·ñĞèÒª¹¤¾ßµ÷ÓÃ
+            // å¾ªç¯è§£ææ¨¡å‹è¾“å‡ºï¼Œçœ‹æ˜¯å¦éœ€è¦å·¥å…·è°ƒç”¨
             while (iterations < maxToolIterations) {
                 memory.addMemory(mapOf("role" to "assistant", "content" to currentOutput.content))
                 val toolCalls = model.parseToolCall(currentOutput)
@@ -153,11 +225,11 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
                     }
                 }
                 
-                // °Ñ¹¤¾ßÊä³öĞ´Èë¼ÇÒä²¢·´À¡¸øÄ£ĞÍÒÔ±ãÉú³É×îÖÕ»Ø´ğ
+                // æŠŠå·¥å…·è¾“å‡ºå†™å…¥è®°å¿†å¹¶åé¦ˆç»™æ¨¡å‹ä»¥ä¾¿ç”Ÿæˆæœ€ç»ˆå›ç­”
                 val followupPrompt = buildPrompt()
                 val followupOutput = model.generateText(followupPrompt)
                 
-                // ÔÙ´ÎÑéÖ¤Ä£ĞÍÊä³öÓĞĞ§ĞÔ
+                // å†æ¬¡éªŒè¯æ¨¡å‹è¾“å‡ºæœ‰æ•ˆæ€§
                 if (followupOutput == null) {
                     println("Warning: Model returned invalid output during iteration.")
                     break
@@ -167,7 +239,7 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
                 iterations++
             }
             
-            // ½«ÖÇÄÜÌå×îÖÕ»Ø¸´Ğ´Èë¼ÇÒä²¢·µ»Ø
+            // å°†æ™ºèƒ½ä½“æœ€ç»ˆå›å¤å†™å…¥è®°å¿†å¹¶è¿”å›
             memory.addMemory(mapOf("role" to "assistant", "content" to currentOutput.content))
             _state.value = AgentState.IDLE
             Result.success(currentOutput.content)
@@ -179,14 +251,14 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
     }
     
     /**
-     * »ùÓÚ×´Ì¬»úµÄÔËĞĞÑ­»·£º°´ÕÕ inputIterable£¨¿Éµü´úµÄÓÃ»§ÊäÈë£©ÖğÌõ´¦Àí²¢²ú³öÏìÓ¦
-     * ×´Ì¬°üÀ¨£ºINITIALIZING, RUNNING, PAUSED, STOPPING, STOPPED, ERROR
+     * åŸºäºçŠ¶æ€æœºçš„è¿è¡Œå¾ªç¯ï¼šæŒ‰ç…§ inputIterableï¼ˆå¯è¿­ä»£çš„ç”¨æˆ·è¾“å…¥ï¼‰é€æ¡å¤„ç†å¹¶äº§å‡ºå“åº”
+     * çŠ¶æ€åŒ…æ‹¬ï¼šINITIALIZING, RUNNING, PAUSED, STOPPING, STOPPED, ERROR
      */
     suspend fun runLoop(
         inputIterable: Iterable<String>,
         stopOnException: Boolean = true
     ): List<String> {
-        // ¶¨Òå×´Ì¬»úµÄ×´Ì¬³£Á¿
+        // å®šä¹‰çŠ¶æ€æœºçš„çŠ¶æ€å¸¸é‡
         val STATE_INITIALIZING = "initializing"
         val STATE_RUNNING = "running"
         val STATE_PAUSED = "paused"
@@ -194,7 +266,7 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
         val STATE_STOPPED = "stopped"
         val STATE_ERROR = "error"
         
-        // ³õÊ¼»¯×´Ì¬»ú
+        // åˆå§‹åŒ–çŠ¶æ€æœº
         var state = STATE_INITIALIZING
         val outputs = mutableListOf<String>()
         running.set(true)
@@ -224,7 +296,7 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
                                         outputs.add("Agent error: $errorMsg")
                                     }
                                     
-                                    // ¼ì²éÊÇ·ñÓĞÔİÍ£ÇëÇó
+                                    // æ£€æŸ¥æ˜¯å¦æœ‰æš‚åœè¯·æ±‚
                                     if (!running.get()) {
                                         state = STATE_PAUSED
                                         break
@@ -239,7 +311,7 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
                                 }
                             }
                             
-                            // Õı³£Íê³ÉËùÓĞÊäÈë´¦Àí
+                            // æ­£å¸¸å®Œæˆæ‰€æœ‰è¾“å…¥å¤„ç†
                             if (state == STATE_RUNNING) {
                                 state = STATE_STOPPING
                             }
@@ -253,9 +325,9 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
                     }
                     
                     STATE_PAUSED -> {
-                        // ÔİÍ£×´Ì¬£¬µÈ´ı»Ö¸´ĞÅºÅ
-                        // ÕâÀï¿ÉÒÔÌí¼ÓµÈ´ıÂß¼­»ò»Øµ÷»úÖÆ
-                        state = STATE_STOPPING // ¼ò»¯´¦Àí£¬Ö±½Ó½øÈëÍ£Ö¹×´Ì¬
+                        // æš‚åœçŠ¶æ€ï¼Œç­‰å¾…æ¢å¤ä¿¡å·
+                        // è¿™é‡Œå¯ä»¥æ·»åŠ ç­‰å¾…é€»è¾‘æˆ–å›è°ƒæœºåˆ¶
+                        state = STATE_STOPPING // ç®€åŒ–å¤„ç†ï¼Œç›´æ¥è¿›å…¥åœæ­¢çŠ¶æ€
                     }
                     
                     STATE_STOPPING -> {
@@ -280,38 +352,42 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
     }
     
     /**
-     * Í£Ö¹ÔËĞĞ
+     * åœæ­¢è¿è¡Œ
      */
     fun stop() {
         running.set(false)
     }
     
     /**
-     * ÔİÍ£ÔËĞĞ
+     * æš‚åœè¿è¡Œ
      */
     fun pause() {
         running.set(false)
     }
     
     /**
-     * »Ö¸´ÔËĞĞ
+     * æ¢å¤è¿è¡Œ
      */
     fun resume() {
         running.set(true)
     }
     
     /**
-     * ¹Ø±ÕAgent£¬ÇåÀíMCPÁ¬½Ó
+     * å…³é—­Agentï¼Œæ¸…ç†MCPè¿æ¥
      */
     fun close() {
         kotlinx.coroutines.runBlocking {
-            mcpClientManager.close()
+            try {
+                mcpClientManager?.close()
+            } catch (e: Exception) {
+                println("Warning: Error closing MCPClientManager: ${e.message}")
+            }
         }
     }
 }
 
 /**
- * Agent×´Ì¬
+ * AgentçŠ¶æ€
  */
 enum class AgentState {
     IDLE,
@@ -321,8 +397,8 @@ enum class AgentState {
 
 
 /**
- * ¼ÇÒäÌõÄ¿
- * ÍêÈ«¶ÔÓ¦Python°æ±¾µÄMemoryEntryÀà
+ * è®°å¿†æ¡ç›®
+ * å®Œå…¨å¯¹åº”Pythonç‰ˆæœ¬çš„MemoryEntryç±»
  */
 data class MemoryEntry(
     val id: String,
@@ -332,24 +408,24 @@ data class MemoryEntry(
 )
 
 /**
- * ÉÏÏÂÎÄ¼ÇÒä
- * ÍêÈ«¶ÔÓ¦Python°æ±¾µÄContextMemoryÀà
+ * ä¸Šä¸‹æ–‡è®°å¿†
+ * å®Œå…¨å¯¹åº”Pythonç‰ˆæœ¬çš„ContextMemoryç±»
  */
 class ContextMemory(private val maxMemorySize: Int = 100) {
     private val memories: MutableList<MemoryEntry> = mutableListOf()
-    private val memoryIndex: MutableMap<String, Int> = mutableMapOf() // idµ½Ë÷ÒıµÄÓ³Éä
+    private val memoryIndex: MutableMap<String, Int> = mutableMapOf() // idåˆ°ç´¢å¼•çš„æ˜ å°„
     
     /**
-     * Ìí¼ÓĞÂµÄ¼ÇÒäÌõÄ¿
+     * æ·»åŠ æ–°çš„è®°å¿†æ¡ç›®
      */
     fun addMemory(
         content: Map<String, Any>,
         memoryId: String? = null,
         metadata: Map<String, Any>? = null
     ): String {
-        val id = memoryId ?: UUID.randomUUID().toString() // Ê¹ÓÃUUIDÈ·±£Î¨Ò»ĞÔ
+        val id = memoryId ?: UUID.randomUUID().toString() // ä½¿ç”¨UUIDç¡®ä¿å”¯ä¸€æ€§
         
-        // ´´½¨ĞÂµÄ¼ÇÒäÌõÄ¿
+        // åˆ›å»ºæ–°çš„è®°å¿†æ¡ç›®
         val entry = MemoryEntry(
             id = id,
             content = content,
@@ -357,7 +433,7 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
             metadata = metadata ?: emptyMap()
         )
         
-        // Èç¹ûÒÑ´ïµ½×î´ó¼ÇÒäÊı£¬ÒÆ³ı×î¾ÉµÄ¼ÇÒä
+        // å¦‚æœå·²è¾¾åˆ°æœ€å¤§è®°å¿†æ•°ï¼Œç§»é™¤æœ€æ—§çš„è®°å¿†
         if (memories.size >= maxMemorySize) {
             val removedEntry = memories.removeAt(0)
             if (removedEntry.id in memoryIndex) {
@@ -365,7 +441,7 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
             }
         }
         
-        // Ìí¼ÓĞÂ¼ÇÒä
+        // æ·»åŠ æ–°è®°å¿†
         memories.add(entry)
         memoryIndex[id] = memories.size - 1
         
@@ -373,7 +449,7 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
     }
     
     /**
-     * ¸ù¾İID»ñÈ¡ÌØ¶¨¼ÇÒä
+     * æ ¹æ®IDè·å–ç‰¹å®šè®°å¿†
      */
     fun getMemory(memoryId: String): MemoryEntry? {
         val index = memoryIndex[memoryId]
@@ -387,19 +463,19 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
     }
     
     /**
-     * »ñÈ¡×î½üµÄ¼ÇÒäÌõÄ¿
+     * è·å–æœ€è¿‘çš„è®°å¿†æ¡ç›®
      */
     fun getRecentMemories(count: Int = 5): List<MemoryEntry> {
         return if (memories.isNotEmpty()) memories.takeLast(count) else emptyList()
     }
     
     /**
-     * ¸ù¾İ¹Ø¼ü×ÖËÑË÷¼ÇÒä
+     * æ ¹æ®å…³é”®å­—æœç´¢è®°å¿†
      */
     fun searchMemories(keyword: String): List<MemoryEntry> {
         val results = mutableListOf<MemoryEntry>()
         for (entry in memories) {
-            // ÔÚÄÚÈİºÍÔªÊı¾İÖĞËÑË÷¹Ø¼ü×Ö
+            // åœ¨å†…å®¹å’Œå…ƒæ•°æ®ä¸­æœç´¢å…³é”®å­—
             val contentStr = entry.content.toString()
             val metadataStr = entry.metadata.toString()
             
@@ -412,7 +488,7 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
     }
     
     /**
-     * ¸üĞÂÏÖÓĞ¼ÇÒä
+     * æ›´æ–°ç°æœ‰è®°å¿†
      */
     fun updateMemory(
         memoryId: String,
@@ -436,7 +512,7 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
     }
     
     /**
-     * É¾³ıÌØ¶¨¼ÇÒä
+     * åˆ é™¤ç‰¹å®šè®°å¿†
      */
     fun deleteMemory(memoryId: String): Boolean {
         val index = memoryIndex[memoryId]
@@ -445,7 +521,7 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
             if (entry.id == memoryId) {
                 memories.removeAt(index)
                 memoryIndex.remove(memoryId)
-                // ¸üĞÂË÷Òı
+                // æ›´æ–°ç´¢å¼•
                 rebuildIndex()
                 return true
             }
@@ -454,7 +530,7 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
     }
     
     /**
-     * ÖØ½¨¼ÇÒäË÷Òı
+     * é‡å»ºè®°å¿†ç´¢å¼•
      */
     private fun rebuildIndex() {
         memoryIndex.clear()
@@ -464,14 +540,14 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
     }
     
     /**
-     * »ñÈ¡ËùÓĞ¼ÇÒäÌõÄ¿
+     * è·å–æ‰€æœ‰è®°å¿†æ¡ç›®
      */
     fun getAllMemories(): List<MemoryEntry> {
         return memories.toList()
     }
     
     /**
-     * Çå¿ÕËùÓĞ¼ÇÒä
+     * æ¸…ç©ºæ‰€æœ‰è®°å¿†
      */
     fun clearMemories() {
         memories.clear()
@@ -479,14 +555,14 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
     }
     
     /**
-     * »ñÈ¡¼ÇÒäÌõÄ¿ÊıÁ¿
+     * è·å–è®°å¿†æ¡ç›®æ•°é‡
      */
     fun getMemoryCount(): Int {
         return memories.size
     }
     
     /**
-     * »ñÈ¡ÉÏÏÂÎÄĞÅÏ¢£¬ÓÃÓÚ¶Ô»°ÏµÍ³
+     * è·å–ä¸Šä¸‹æ–‡ä¿¡æ¯ï¼Œç”¨äºå¯¹è¯ç³»ç»Ÿ
      */
     fun getContext(count: Int = 5): List<Map<String, String>> {
         if (count <= 0) return emptyList()
@@ -499,8 +575,8 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
 }
 
 /**
- * ÓÃ»§¹ÜÀíÀà
- * ÍêÈ«¶ÔÓ¦Python°æ±¾µÄUserManagerÀà
+ * ç”¨æˆ·ç®¡ç†ç±»
+ * å®Œå…¨å¯¹åº”Pythonç‰ˆæœ¬çš„UserManagerç±»
  */
 class UserManager {
     companion object {
@@ -520,37 +596,37 @@ class UserManager {
     private val memoryStoragePath = "user_memories"
     
     init {
-        // ´´½¨´æ´¢Ä¿Â¼
-        // TODO: ÊµÏÖÎÄ¼şÏµÍ³²Ù×÷
-        // ¼ÓÔØÒÑ´æÔÚµÄ¼ÇÒä¿â
+        // åˆ›å»ºå­˜å‚¨ç›®å½•
+        // TODO: å®ç°æ–‡ä»¶ç³»ç»Ÿæ“ä½œ
+        // åŠ è½½å·²å­˜åœ¨çš„è®°å¿†åº“
         loadAllMemories()
     }
     
     /**
-     * ×Ô¶¯ÉèÖÃµ±Ç°ÓÃ»§£¬Èç¹ûÃ»ÓĞÓÃ»§Ôò´´½¨ĞÂÓÃ»§
+     * è‡ªåŠ¨è®¾ç½®å½“å‰ç”¨æˆ·ï¼Œå¦‚æœæ²¡æœ‰ç”¨æˆ·åˆ™åˆ›å»ºæ–°ç”¨æˆ·
      */
     fun autoSetCurrentUser(): String {
         if (currentUserId == null) {
             currentUserId = UUID.randomUUID().toString()
             usersMemory[currentUserId!!] = ContextMemory(defaultMemorySize)
-            println("ÎªĞÂÓÃ»§·ÖÅäID: $currentUserId")
+            println("ä¸ºæ–°ç”¨æˆ·åˆ†é…ID: $currentUserId")
         }
         return currentUserId!!
     }
     
     /**
-     * ÉèÖÃµ±Ç°ÓÃ»§
+     * è®¾ç½®å½“å‰ç”¨æˆ·
      */
     fun setCurrentUser(userId: String) {
         currentUserId = userId
-        // Èç¹ûÓÃ»§¼ÇÒä¿â²»´æÔÚ£¬Ôò´´½¨
+        // å¦‚æœç”¨æˆ·è®°å¿†åº“ä¸å­˜åœ¨ï¼Œåˆ™åˆ›å»º
         if (userId !in usersMemory) {
             usersMemory[userId] = ContextMemory(defaultMemorySize)
         }
     }
     
     /**
-     * »ñÈ¡µ±Ç°ÓÃ»§µÄ¼ÇÒä¿â£¬Èç¹ûÎ´ÉèÖÃÓÃ»§Ôò×Ô¶¯´´½¨
+     * è·å–å½“å‰ç”¨æˆ·çš„è®°å¿†åº“ï¼Œå¦‚æœæœªè®¾ç½®ç”¨æˆ·åˆ™è‡ªåŠ¨åˆ›å»º
      */
     fun getCurrentUserMemory(): ContextMemory? {
         if (currentUserId == null) {
@@ -560,14 +636,14 @@ class UserManager {
     }
     
     /**
-     * »ñÈ¡Ö¸¶¨ÓÃ»§µÄ¼ÇÒä¿â
+     * è·å–æŒ‡å®šç”¨æˆ·çš„è®°å¿†åº“
      */
     fun getUserMemory(userId: String): ContextMemory? {
         return usersMemory[userId]
     }
     
     /**
-     * ÎªÓÃ»§´´½¨¼ÇÒä¿â
+     * ä¸ºç”¨æˆ·åˆ›å»ºè®°å¿†åº“
      */
     fun createUserMemory(userId: String, maxMemorySize: Int = 100): ContextMemory {
         val memory = ContextMemory(maxMemorySize)
@@ -576,7 +652,7 @@ class UserManager {
     }
     
     /**
-     * ÇĞ»»µ±Ç°ÓÃ»§£¬Èç¹ûÎ´Ìá¹©ÓÃ»§IDÔò×Ô¶¯´´½¨ĞÂÓÃ»§
+     * åˆ‡æ¢å½“å‰ç”¨æˆ·ï¼Œå¦‚æœæœªæä¾›ç”¨æˆ·IDåˆ™è‡ªåŠ¨åˆ›å»ºæ–°ç”¨æˆ·
      */
     fun switchUser(userId: String? = null): ContextMemory {
         val finalUserId = userId ?: autoSetCurrentUser()
@@ -585,32 +661,32 @@ class UserManager {
     }
     
     /**
-     * ±£´æÖ¸¶¨ÓÃ»§µÄ¼ÇÒä¿âµ½±¾µØÎÄ¼ş
+     * ä¿å­˜æŒ‡å®šç”¨æˆ·çš„è®°å¿†åº“åˆ°æœ¬åœ°æ–‡ä»¶
      */
     fun saveUserMemory(userId: String) {
-        // TODO: ÊµÏÖÎÄ¼ş±£´æÂß¼­
-        println("±£´æÓÃ»§ $userId µÄ¼ÇÒä¿â")
+        // TODO: å®ç°æ–‡ä»¶ä¿å­˜é€»è¾‘
+        println("ä¿å­˜ç”¨æˆ· $userId çš„è®°å¿†åº“")
     }
     
     /**
-     * ´Ó±¾µØÎÄ¼ş¼ÓÔØÖ¸¶¨ÓÃ»§µÄ¼ÇÒä¿â
+     * ä»æœ¬åœ°æ–‡ä»¶åŠ è½½æŒ‡å®šç”¨æˆ·çš„è®°å¿†åº“
      */
     fun loadUserMemory(userId: String): ContextMemory? {
-        // TODO: ÊµÏÖÎÄ¼ş¼ÓÔØÂß¼­
-        println("¼ÓÔØÓÃ»§ $userId µÄ¼ÇÒä¿â")
+        // TODO: å®ç°æ–‡ä»¶åŠ è½½é€»è¾‘
+        println("åŠ è½½ç”¨æˆ· $userId çš„è®°å¿†åº“")
         return null
     }
     
     /**
-     * ¼ÓÔØËùÓĞÓÃ»§µÄ¼ÇÒä¿â
+     * åŠ è½½æ‰€æœ‰ç”¨æˆ·çš„è®°å¿†åº“
      */
     fun loadAllMemories() {
-        // TODO: ÊµÏÖÅúÁ¿¼ÓÔØÂß¼­
-        println("¼ÓÔØËùÓĞÓÃ»§µÄ¼ÇÒä¿â")
+        // TODO: å®ç°æ‰¹é‡åŠ è½½é€»è¾‘
+        println("åŠ è½½æ‰€æœ‰ç”¨æˆ·çš„è®°å¿†åº“")
     }
     
     /**
-     * ±£´æËùÓĞÓÃ»§µÄ¼ÇÒä¿âµ½±¾µØÎÄ¼ş
+     * ä¿å­˜æ‰€æœ‰ç”¨æˆ·çš„è®°å¿†åº“åˆ°æœ¬åœ°æ–‡ä»¶
      */
     fun saveAllMemories() {
         for (userId in usersMemory.keys) {
@@ -619,15 +695,15 @@ class UserManager {
     }
     
     /**
-     * »ñÈ¡µ±Ç°ÓÃ»§ID£¬Èç¹ûÃ»ÓĞÉèÖÃÔò×Ô¶¯´´½¨ĞÂÓÃ»§
+     * è·å–å½“å‰ç”¨æˆ·IDï¼Œå¦‚æœæ²¡æœ‰è®¾ç½®åˆ™è‡ªåŠ¨åˆ›å»ºæ–°ç”¨æˆ·
      */
     fun getOrCreateUser(): String {
         if (currentUserId == null) {
-            // ×Ô¶¯Éú³ÉĞÂµÄÓÃ»§ID
+            // è‡ªåŠ¨ç”Ÿæˆæ–°çš„ç”¨æˆ·ID
             currentUserId = UUID.randomUUID().toString()
-            // ÎªĞÂÓÃ»§´´½¨¼ÇÒä¿â
+            // ä¸ºæ–°ç”¨æˆ·åˆ›å»ºè®°å¿†åº“
             usersMemory[currentUserId!!] = ContextMemory(defaultMemorySize)
-            println("ÎªĞÂÓÃ»§·ÖÅäID: $currentUserId")
+            println("ä¸ºæ–°ç”¨æˆ·åˆ†é…ID: $currentUserId")
         }
         return currentUserId!!
     }
