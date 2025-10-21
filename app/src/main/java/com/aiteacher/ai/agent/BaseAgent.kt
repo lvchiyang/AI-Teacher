@@ -148,6 +148,11 @@ Please provide helpful responses based on your training and knowledge."""
     }
     
     /**
+     * 构建系统提示词 - 子类必须实现
+     */
+    abstract fun buildSystemPrompt(): String
+    
+    /**
      * 根据记忆和工具信息构造提交给模型的 prompt
      */
     protected fun buildPrompt(n: Int? = null): List<Map<String, String>> {

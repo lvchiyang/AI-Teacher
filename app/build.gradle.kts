@@ -1,7 +1,9 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("kotlin-kapt")
+    id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.dagger.hilt.android")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -42,10 +44,6 @@ android {
     
     buildFeatures {
         compose = true
-    }
-    
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.13"
     }
     
     packaging {
@@ -89,16 +87,18 @@ dependencies {
     // MCP Kotlin SDK
     implementation("io.modelcontextprotocol:kotlin-sdk:0.6.0")
     
-    // Ktor engines for MCP
-    implementation("io.ktor:ktor-client-cio:2.3.11")
-    implementation("io.ktor:ktor-server-netty:2.3.11")
-    implementation("io.ktor:ktor-server-sse:2.3.11")
-    implementation("io.ktor:ktor-websockets:2.3.11")
+    // Ktor client for HTTP requests
+    implementation("io.ktor:ktor-client-cio:3.2.1")
     
     // Room Database
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-    kapt("androidx.room:room-compiler:2.6.1")
+    implementation("androidx.room:room-runtime:2.8.2")
+    implementation("androidx.room:room-ktx:2.8.2")
+    ksp("androidx.room:room-compiler:2.8.2")
+    
+    // Hilt Dependency Injection
+    implementation("com.google.dagger:hilt-android:2.48.1")
+    implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
+    ksp("com.google.dagger:hilt-android-compiler:2.48.1")
     
     // Testing
     testImplementation("junit:junit:4.13.2")
@@ -110,9 +110,3 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
 
-// 添加 testClasses 任务以兼容某些 IDE 或脚本
-tasks.register("testClasses") {
-    dependsOn("compileDebugUnitTestSources")
-    group = "build"
-    description = "Assembles test classes (alias for Android unit tests)."
-}

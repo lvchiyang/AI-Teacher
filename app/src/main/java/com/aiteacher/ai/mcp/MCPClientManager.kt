@@ -1,7 +1,9 @@
 package com.aiteacher.ai.mcp
 
-import io.modelcontextprotocol.kotlin.sdk.*
+import io.modelcontextprotocol.kotlin.sdk.client.*
+import io.modelcontextprotocol.kotlin.sdk.transport.*
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -10,6 +12,7 @@ import kotlinx.serialization.Serializable
 import java.nio.file.Files
 import java.nio.file.Paths
 import kotlinx.serialization.json.JsonPrimitive
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * MCP Client - 单个Client实例，连接一个Server
@@ -29,20 +32,21 @@ private fun Map<String, Any>.toJsonObject(): JsonObject = buildJsonObject {
 
 class MCPClient(
     private val serverId: String,
-    private val serverDef: ServerDef
+    private val serverDef: ServerDef,
+    private val coroutineScope: CoroutineScope
 ) {
     private val transport = when {
         serverDef.cmd != null -> {
-            StdioClientTransport(ProcessBuilder(serverDef.cmd))
+            StdioTransport(serverDef.cmd.first(), serverDef.cmd.drop(1))
         }
         serverDef.url != null -> {
-            SseClientTransport(serverDef.url)
+            HttpTransport(serverDef.url)
         }
         else -> throw IllegalArgumentException("Server definition must have either cmd or url")
     }
     
-    // 把底层传输层包装成官方 DefaultMcpClient，自动完成 Initialize/心跳/路由
-    private val inner = DefaultMcpClient(transport)
+    // 使用新的McpClient API
+    private val inner = McpClient(transport, coroutineScope)
     
     private var isConnected = false
     
@@ -52,7 +56,7 @@ class MCPClient(
     suspend fun connect() {
         if (!isConnected) {
             // 触发 MCP 握手：发送 InitializeRequest → 等待 InitializeResponse → 发送 InitializedNotification
-            inner.connect()
+            inner.start()
             isConnected = true
         }
     }
@@ -67,7 +71,7 @@ class MCPClient(
         
         // 发送 tools/call 请求，带工具名和参数；返回 ToolResult（含 content 数组）
         val result = inner.callTool(toolName, parameters.toJsonObject())
-        return result.content.first().text
+        return result.content.firstOrNull()?.text ?: ""
     }
     
     /**
@@ -129,9 +133,10 @@ class MCPClient(
  */
 class MCPClientManager(
     private val hostName: String,
-    private val configFilePath: String
-) {
-    private val clients = mutableMapOf<String, MCPClient>() // serverId -> MCPClient
+    private val configFilePath: String,
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+) : CoroutineScope by coroutineScope {
+    private val clients = ConcurrentHashMap<String, MCPClient>() // serverId -> MCPClient
     private val toolToServerMap = mutableMapOf<String, String>() // toolName -> serverId
     private val allAvailableTools = mutableSetOf<String>() // 所有可用工具
     
@@ -152,7 +157,7 @@ class MCPClientManager(
         // 为配置文件中的每个服务器创建Client
         config.servers.forEach { serverDef ->
             try {
-                val client = MCPClient(serverDef.id, serverDef)
+                val client = MCPClient(serverDef.id, serverDef, coroutineScope)
                 client.connect()
                 clients[serverDef.id] = client
                 
@@ -258,12 +263,16 @@ class MCPClientManager(
      * 关闭所有Client连接
      */
     suspend fun close() {
-        clients.values.forEach { client ->
-            try {
-                client.close()
-            } catch (e: Exception) {
-                println("Error closing client: ${e.message}")
-            }
+        coroutineScope {
+            clients.values.map { client ->
+                async {
+                    try {
+                        client.close()
+                    } catch (e: Exception) {
+                        println("Error closing client: ${e.message}")
+                    }
+                }
+            }.awaitAll()
         }
         clients.clear()
         toolToServerMap.clear()

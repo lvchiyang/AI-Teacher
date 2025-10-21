@@ -11,7 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aiteacher.ai.agent.SecretaryAgent
+import com.aiteacher.ai.agent.AgentFactory
 import com.aiteacher.ai.agent.TeachingPlanResult
 import com.aiteacher.data.local.repository.StudentRepository
 import com.aiteacher.domain.model.LearningProgress
@@ -34,8 +34,7 @@ fun TeachingOutlineScreen(
     
     // 初始化教秘Agent
     val secretaryAgent = remember { 
-        val agent = SecretaryAgent()
-        agent
+        AgentFactory.createSecretaryAgent(enableMcp = true)
     }
     
     // 加载教学大纲
@@ -55,7 +54,7 @@ fun TeachingOutlineScreen(
             val result = secretaryAgent.createTeachingPlan(
                 studentId = studentId,
                 grade = grade,
-                currentChapter = "第一章 有理数", // TODO: 从学生数据获取
+                currentChapter = student?.currentChapter ?: "第一章 有理数",
                 learningProgress = learningProgress
             )
             
@@ -96,6 +95,10 @@ fun TeachingOutlineScreen(
                         isLoading = true
                         error = null
                         teachingPlan = null
+                        // 重新触发LaunchedEffect
+                        scope.launch {
+                            // 这里可以添加重新生成的逻辑
+                        }
                     }
                 )
             }

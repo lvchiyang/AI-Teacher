@@ -4,36 +4,28 @@ import com.aiteacher.ai.service.LLMModel
 
 /**
  * Agent工厂 - 提供便捷的Agent创建方式
- * 展示更好的设计模式
+ * 简化设计，避免功能重叠
  */
 object AgentFactory {
     
     /**
-     * 创建有MCP工具的SecretaryAgent
+     * 创建教秘Agent（推荐使用MCP工具）
      */
-    fun createSecretaryWithMcp(model: LLMModel = LLMModel("qwen-max")): SecretaryAgent {
-        return SecretaryAgent(model, enableMcp = true)
+    fun createSecretaryAgent(
+        model: LLMModel = LLMModel("qwen-max"),
+        enableMcp: Boolean = true
+    ): SecretaryAgent {
+        return SecretaryAgent(model, enableMcp)
     }
     
     /**
-     * 创建无MCP工具的SecretaryAgent
+     * 创建教学Agent（推荐使用MCP工具）
      */
-    fun createSecretaryWithoutMcp(model: LLMModel = LLMModel("qwen-max")): SecretaryAgent {
-        return SecretaryAgent(model, enableMcp = false)
-    }
-    
-    /**
-     * 创建TeachingAgent（带MCP）
-     */
-    fun createTeachingWithMcp(model: LLMModel = LLMModel("qwen-max")): TeachingAgent {
-        return TeachingAgent(model, enableMcp = true)
-    }
-    
-    /**
-     * 创建TeachingAgent（无MCP）
-     */
-    fun createTeachingWithoutMcp(model: LLMModel = LLMModel("qwen-max")): TeachingAgent {
-        return TeachingAgent(model, enableMcp = false)
+    fun createTeachingAgent(
+        model: LLMModel = LLMModel("qwen-max"),
+        enableMcp: Boolean = true
+    ): TeachingAgent {
+        return TeachingAgent(model, enableMcp)
     }
     
     /**
@@ -47,7 +39,7 @@ object AgentFactory {
             name = name,
             description = "纯对话智能体，不使用任何外部工具",
             model = model,
-            mcpConfigPath = null // 明确不使用MCP
+            mcpConfigPath = null
         ) {
             override fun buildSystemPrompt(): String {
                 return """你是$name，一个专注于对话交流的智能助手。

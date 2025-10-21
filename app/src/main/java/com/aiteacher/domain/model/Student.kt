@@ -17,6 +17,7 @@ data class Student(
  * 按掌握状态分类记录知识点
  */
 data class LearningProgress(
+    val notTaught: List<String>,              // 未讲解的知识点ID列表
     val taughtToReview: List<String>,        // 已讲解待复习的知识点ID列表
     val notMastered: List<String>,            // 未掌握的知识点ID列表
     val basicMastery: List<String>,           // 初步掌握的知识点ID列表

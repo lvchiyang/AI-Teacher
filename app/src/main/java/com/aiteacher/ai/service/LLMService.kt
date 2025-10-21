@@ -2,9 +2,7 @@ package com.aiteacher.ai.service
 
 import com.openai.client.OpenAIClient
 import com.openai.client.okhttp.OpenAIOkHttpClient
-import com.openai.models.ChatCompletion
-import com.openai.models.ChatCompletionMessage
-import com.openai.models.ChatCompletionRole
+import com.openai.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -74,7 +72,7 @@ class LLMModel(
                 }
                 
                 // 构建请求参数
-                val paramsBuilder = com.openai.models.ChatCompletionCreateParams.builder()
+                val paramsBuilder = ChatCompletionCreateParams.builder()
                     .model(modelName)
                     .messages(messages)
                     .temperature(temperature.toDouble())
@@ -95,10 +93,10 @@ class LLMModel(
                 // 添加工具支持 - 完全对应Python版本的tools参数
                 if (tools.isNotEmpty()) {
                     val openAITools = tools.map { toolSpec ->
-                        com.openai.models.ChatCompletionTool.builder()
-                            .type(com.openai.models.ChatCompletionTool.Type.FUNCTION)
+                        ChatCompletionTool.builder()
+                            .type(ChatCompletionTool.Type.FUNCTION)
                             .function(
-                                com.openai.models.ChatCompletionFunction.builder()
+                                ChatCompletionFunction.builder()
                                     .name(toolSpec["name"] as? String ?: "")
                                     .description(toolSpec["description"] as? String ?: "")
                                     .parameters(toolSpec["parameters"] as? Map<String, Any> ?: emptyMap())
@@ -110,11 +108,11 @@ class LLMModel(
                 }
                 
                 val completion = client.chat().completions().create(
-                    chatCompletionCreateParams = paramsBuilder.build()
+                    paramsBuilder.build()
                 )
                 
                 // 解析响应
-                val content = completion.choices()[0].message().content() ?: ""
+                val content = completion.choices().first().message().content().orElse("")
                 val toolCalls = parseToolCallsFromCompletion(completion)
                 
                 // 返回LLMOutput对象，与Python版本一致

@@ -8,7 +8,7 @@ import com.aiteacher.data.local.dao.StudentDao
 import com.aiteacher.data.local.entity.StudentEntity
 
 /**
- * AI教师数据库 - 简化版，只存储学生信息
+ * AI教师数据库 - 存储学生信息
  */
 @Database(
     entities = [StudentEntity::class],
