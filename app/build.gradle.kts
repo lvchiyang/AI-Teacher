@@ -52,10 +52,8 @@ android {
     }
 }
 
-val mcpVersion = "0.5.0"
 val slf4jVersion = "2.0.9"
 val anthropicVersion = "0.8.0"
-val ktorVersion = "3.1.1"
 
 
 dependencies {
@@ -89,23 +87,13 @@ dependencies {
     // JSON serialization for tool call parsing
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     
-    // MCP Kotlin SDK
-    implementation("io.modelcontextprotocol:kotlin-sdk:$mcpVersion")
-    implementation("org.slf4j:slf4j-nop:$slf4jVersion")
+    // Anthropic Java SDK
     implementation("com.anthropic:anthropic-java:$anthropicVersion")
-    
-    // Ktor dependencies for MCP server
-    implementation("io.ktor:ktor-client-core:$ktorVersion")
-    implementation("io.ktor:ktor-client-cio:$ktorVersion")
-    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
     
     // // Jackson for JSON processing - use older compatible version
     // implementation("com.fasterxml.jackson.core:jackson-core:2.13.5")
     // implementation("com.fasterxml.jackson.core:jackson-databind:2.13.5")
     
-    // Kotlinx IO for stream processing
-    implementation("org.jetbrains.kotlinx:kotlinx-io-core:0.4.1")
 
     
     // Room Database

@@ -36,8 +36,7 @@ object AgentFactory {
         return object : BaseAgent(
             name = name,
             description = "纯对话智能体，不使用任何外部工具",
-            model = model,
-            mcpConfigPath = null
+            model = model
         ) {
             override fun buildSystemPrompt(): String {
                 return """你是$name，一个专注于对话交流的智能助手。
@@ -56,8 +55,7 @@ class TeachingAgent(
 ) : BaseAgent(
     name = "TeachingAgent",
     description = "教学代理，负责具体教学实施",
-    model = model,
-    mcpConfigPath = null
+    model = model
 ) {
     
     override fun buildSystemPrompt(): String {

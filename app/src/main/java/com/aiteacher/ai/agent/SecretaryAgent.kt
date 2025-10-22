@@ -9,13 +9,11 @@ import kotlinx.serialization.json.Json
  * 教秘Agent - 负责制定教学计划
  */
 class SecretaryAgent(
-    model: LLMModel = LLMModel("qwen-max"),
-    enableMcp: Boolean = true
+    model: LLMModel = LLMModel("qwen-max")
 ) : BaseAgent(
     name = "SecretaryAgent",
     description = "教秘代理，负责整体教学计划和进度管理",
-    model = model,
-    mcpConfigPath = if (enableMcp) "app/src/main/java/com/aiteacher/ai/mcp/server/secretary-config.json" else null
+    model = model
 ) {
     
     override fun buildSystemPrompt(): String {
