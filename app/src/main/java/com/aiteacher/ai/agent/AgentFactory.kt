@@ -9,27 +9,25 @@ import com.aiteacher.ai.service.LLMModel
 object AgentFactory {
     
     /**
-     * 创建教秘Agent（推荐使用MCP工具）
+     * 创建教秘Agent
      */
     fun createSecretaryAgent(
-        model: LLMModel = LLMModel("qwen-max"),
-        enableMcp: Boolean = true
+        model: LLMModel = LLMModel("qwen-max")
     ): SecretaryAgent {
-        return SecretaryAgent(model, enableMcp)
+        return SecretaryAgent(model)
     }
     
     /**
-     * 创建教学Agent（推荐使用MCP工具）
+     * 创建教学Agent
      */
     fun createTeachingAgent(
-        model: LLMModel = LLMModel("qwen-max"),
-        enableMcp: Boolean = true
+        model: LLMModel = LLMModel("qwen-max")
     ): TeachingAgent {
-        return TeachingAgent(model, enableMcp)
+        return TeachingAgent(model)
     }
     
     /**
-     * 创建纯对话Agent（无MCP，无工具）
+     * 创建纯对话Agent
      */
     fun createChatAgent(
         name: String = "ChatAgent",
@@ -54,13 +52,12 @@ object AgentFactory {
  * TeachingAgent - 教学代理
  */
 class TeachingAgent(
-    model: LLMModel = LLMModel("qwen-max"),
-    enableMcp: Boolean = true
+    model: LLMModel = LLMModel("qwen-max")
 ) : BaseAgent(
     name = "TeachingAgent",
     description = "教学代理，负责具体教学实施",
     model = model,
-    mcpConfigPath = if (enableMcp) "app/src/main/java/com/aiteacher/ai/mcp/server/teaching-config.json" else null
+    mcpConfigPath = null
 ) {
     
     override fun buildSystemPrompt(): String {
@@ -75,10 +72,9 @@ class TeachingAgent(
             
             教学实施流程：
             1. 根据教学计划确定当前教学内容
-            2. 使用相关工具获取教学资源
-            3. 生成适合的练习题
-            4. 评估学生答题情况
-            5. 提供反馈和改进建议
+            2. 生成适合的练习题
+            3. 评估学生答题情况
+            4. 提供反馈和改进建议
             
             请根据教学计划，提供具体的教学实施建议。
         """.trimIndent()

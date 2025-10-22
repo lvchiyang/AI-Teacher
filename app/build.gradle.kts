@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.dagger.hilt.android")
     id("com.google.devtools.ksp")
 }
 
@@ -78,14 +77,14 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     
-    // OpenAI compatible SDK for DashScope
-    implementation("com.openai:openai-java:0.25.0")
+    // OpenAI Kotlin SDK for DashScope
+    implementation("com.aallam.openai:openai-client:4.0.1")
     
     // JSON serialization for tool call parsing
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     
     // MCP Kotlin SDK
-    implementation("io.modelcontextprotocol:kotlin-sdk:0.6.0")
+    implementation("io.modelcontextprotocol:kotlin-sdk:0.7.3")
     
     // Ktor client for HTTP requests
     implementation("io.ktor:ktor-client-cio:3.2.1")
@@ -95,10 +94,7 @@ dependencies {
     implementation("androidx.room:room-ktx:2.8.2")
     ksp("androidx.room:room-compiler:2.8.2")
     
-    // Hilt Dependency Injection
-    implementation("com.google.dagger:hilt-android:2.48.1")
-    implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
-    ksp("com.google.dagger:hilt-android-compiler:2.48.1")
+    // 移除Hilt依赖注入，改用简单依赖管理
     
     // Testing
     testImplementation("junit:junit:4.13.2")

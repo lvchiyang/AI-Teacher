@@ -1,7 +1,8 @@
 package com.aiteacher.ai.mcp.server
 
-import io.modelcontextprotocol.kotlin.sdk.server.*
 import io.modelcontextprotocol.kotlin.sdk.*
+import io.modelcontextprotocol.kotlin.sdk.server.Server
+import kotlinx.serialization.json.JsonObject
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -36,14 +37,14 @@ class KnowledgeBaseServer {
     /**
      * 添加知识库工具到MCP服务器
      */
-    fun McpServerScope.addKnowledgeTools() {
-        tool(
+    fun addKnowledgeTools(server: Server) {
+        server.addTool(
             name = "searchKBase",
             description = "搜索知识点",
-            inputSchema = ToolInputSchema.Json(json {})
-        ) { params ->
-            val result = searchKnowledgeBase(params)
-            CallToolResult(listOf(TextContent(result)), isError = false)
+            inputSchema = Tool.Input()
+        ) { request ->
+            val result = searchKnowledgeBase(request.arguments)
+            CallToolResult(listOf(TextContent(result)))
         }
     }
 
@@ -51,11 +52,11 @@ class KnowledgeBaseServer {
  * 知识库检索功能
  * 用于检索教学大纲和知识点信息
  */
-fun searchKnowledgeBase(params: JsonObject): String {
-    val type = params["type"]?.toString()?.removeSurrounding("\"") ?: "syllabus"
-    val grade = params["grade"]?.toString()?.toIntOrNull() ?: 7
-    val subject = params["subject"]?.toString()?.removeSurrounding("\"") ?: "数学"
-    val keyword = params["keyword"]?.toString()?.removeSurrounding("\"")
+fun searchKnowledgeBase(params: JsonObject?): String {
+    val type = params?.get("type")?.toString()?.removeSurrounding("\"") ?: "syllabus"
+    val grade = params?.get("grade")?.toString()?.toIntOrNull() ?: 7
+    val subject = params?.get("subject")?.toString()?.removeSurrounding("\"") ?: "数学"
+    val keyword = params?.get("keyword")?.toString()?.removeSurrounding("\"")
     
     return when (type) {
         "syllabus" -> getSyllabus(grade, subject)

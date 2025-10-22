@@ -34,7 +34,7 @@ fun TeachingOutlineScreen(
     
     // 初始化教秘Agent
     val secretaryAgent = remember { 
-        AgentFactory.createSecretaryAgent(enableMcp = true)
+        AgentFactory.createSecretaryAgent()
     }
     
     // 加载教学大纲
@@ -43,6 +43,7 @@ fun TeachingOutlineScreen(
             // 获取学生学习进度
             val student = studentRepository.getStudentById(studentId)
             val learningProgress = student?.learningProgress ?: LearningProgress(
+                notTaught = emptyList(),
                 taughtToReview = emptyList(),
                 notMastered = emptyList(),
                 basicMastery = emptyList(),

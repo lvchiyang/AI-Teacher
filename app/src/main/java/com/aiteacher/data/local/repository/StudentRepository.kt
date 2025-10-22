@@ -86,7 +86,8 @@ private fun StudentEntity.toDomainModel(): Student {
         studentName = this.studentName,
         grade = this.grade,
         currentChapter = this.currentChapter,
-        learningProgress = LearningProgress(
+        learningProgress =         LearningProgress(
+            notTaught = emptyList(),
             taughtToReview = emptyList(),
             notMastered = emptyList(),
             basicMastery = emptyList(),

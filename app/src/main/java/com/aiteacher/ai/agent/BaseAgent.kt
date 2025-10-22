@@ -122,7 +122,7 @@ Please provide helpful responses based on your training and knowledge."""
     /**
      * 获取Agent可用的工具列表
      */
-    fun getAvailableTools(): List<String> {
+    fun getAvailableToolsList(): List<String> {
         return availableTools
     }
     
@@ -197,7 +197,7 @@ Please provide helpful responses based on your training and knowledge."""
             
             // 循环解析模型输出，看是否需要工具调用
             while (iterations < maxToolIterations) {
-                memory.addMemory(mapOf("role" to "assistant", "content" to currentOutput.content))
+                memory.addMemory(mapOf("role" to "assistant", "content" to (currentOutput?.content ?: "")))
                 val toolCalls = model.parseToolCall(currentOutput)
                 
                 if (toolCalls == null || toolCalls.isEmpty()) {
@@ -245,9 +245,9 @@ Please provide helpful responses based on your training and knowledge."""
             }
             
             // 将智能体最终回复写入记忆并返回
-            memory.addMemory(mapOf("role" to "assistant", "content" to currentOutput.content))
+            memory.addMemory(mapOf("role" to "assistant", "content" to (currentOutput?.content ?: "")))
             _state.value = AgentState.IDLE
-            Result.success(currentOutput.content)
+            Result.success(currentOutput?.content ?: "")
             
         } catch (e: Exception) {
             _state.value = AgentState.ERROR

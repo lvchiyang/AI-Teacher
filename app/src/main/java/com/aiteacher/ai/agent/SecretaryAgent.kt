@@ -38,8 +38,6 @@ class SecretaryAgent(
         """.trimIndent()
     }
     
-    // SecretaryAgent不需要重写这些方法，使用BaseAgent的默认实现
-    
     /**
      * 制定教学计划
      * 这是教秘Agent的核心能力，通过调用LLM直接完成
@@ -135,7 +133,6 @@ class SecretaryAgent(
             planDescription = "今日教学计划：复习有理数基础概念，学习有理数运算"
         )
     }
-    
 }
 
 /**
@@ -158,4 +155,3 @@ data class TeachingPlanResult(
     val estimatedDuration: Int,
     val planDescription: String
 )
-

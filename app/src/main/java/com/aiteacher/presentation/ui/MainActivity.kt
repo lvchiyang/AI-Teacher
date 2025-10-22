@@ -8,17 +8,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
-import com.aiteacher.data.local.repository.StudentRepository
+import com.aiteacher.AITeacherApplication
 import com.aiteacher.presentation.navigation.AITeacherNavigation
 import com.aiteacher.presentation.ui.theme.AITeacherTheme
-import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 
-@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     
-    @Inject
-    lateinit var studentRepository: StudentRepository
+    private val studentRepository by lazy { 
+        (application as AITeacherApplication).studentRepository 
+    }
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
