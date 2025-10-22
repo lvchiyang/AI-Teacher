@@ -1,6 +1,7 @@
 package com.aiteacher.ai.agent
 
 import com.aiteacher.ai.service.LLMModel
+// import com.aiteacher.ai.mcp.MCPClientManager  // MCP功能暂时注释
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,23 +20,60 @@ abstract class BaseAgent(
     val name: String,
     description: String? = null,
     protected val model: LLMModel = LLMModel("qwen-max"),
+    // private val mcpConfigPath: String? = null, // MCP功能暂时注释 - null表示不使用MCP
     memory: ContextMemory = UserManager().getCurrentUserMemory() ?: ContextMemory(maxMemorySize = 20),
     maxToolIterations: Int = 3
 ) {
     val description: String = description ?: "An intelligent agent named $name capable of using tools and maintaining conversation context"
     
-    // Agent可用的工具列表
-    protected val availableTools: List<String> = emptyList()
+    // Agent可用的工具列表 - MCP功能暂时注释
+    // protected lateinit var availableTools: List<String>
+    protected val availableTools: List<String> = emptyList() // 暂时设为空列表
     protected val memory: ContextMemory = memory
     protected val maxToolIterations: Int = maxOf(1, minOf(maxToolIterations, 10)) // 限制在合理范围内
     protected val running: AtomicBoolean = AtomicBoolean(false)
     
+    // MCP Client管理器 - MCP功能暂时注释
+    // private val mcpClientManager: MCPClientManager? = mcpConfigPath?.let { 
+    //     MCPClientManager(name, it) 
+    // }
+    
     init {
-        // Agent初始化完成
-        println("Agent '$name' initialized (no-tools mode)")
+        // MCP功能暂时注释 - 初始化MCPClientManager并获取可用工具（如果配置了MCP）
+        /*
+        kotlinx.coroutines.runBlocking {
+            if (mcpClientManager != null) {
+                try {
+                    mcpClientManager.start()
+                    
+                    // 获取可用工具列表
+                    availableTools = mcpClientManager.getAllTools()
+                    
+                    // 将工具规范注册到LLM模型中
+                    val toolSpecs = mcpClientManager.getToolSpecs()
+                    toolSpecs.forEach { spec ->
+                        model.addTool(spec)
+                    }
+                    
+                    println("Agent '$name' initialized with MCP tools: $availableTools")
+                } catch (e: Exception) {
+                    // MCP初始化失败，降级为无工具模式
+                    println("Warning: MCP initialization failed for Agent '$name': ${e.message}")
+                    println("Agent '$name' will run in no-tools mode")
+                    availableTools = emptyList()
+                }
+            } else {
+                // 没有配置MCP，直接运行在无工具模式
+                availableTools = emptyList()
+                println("Agent '$name' initialized without MCP (no-tools mode)")
+            }
+        }
+        */
+        // 暂时运行在无工具模式
+        println("Agent '$name' initialized (no-tools mode - MCP disabled)")
     }
     
-    // 系统提示头
+    // 系统提示头 - MCP功能暂时注释，固定为无工具模式
     protected val promptHead: Map<String, String> by lazy {
         val content = """You are $name, an intelligent assistant.
 You do not have access to any external tools, so you must rely on your knowledge and reasoning abilities to help users.
@@ -53,6 +91,31 @@ Please provide helpful responses based on your training and knowledge."""
     
     
     /**
+     * 调用MCP工具 - MCP功能暂时注释
+     */
+    /*
+    suspend fun callTool(toolName: String, kwargs: Map<String, Any> = emptyMap()): Any {
+        // 检查是否配置了MCP
+        if (mcpClientManager == null) {
+            throw IllegalStateException("Agent '$name' is not configured with MCP. Cannot call tools.")
+        }
+        
+        // 检查是否有工具可用
+        if (availableTools.isEmpty()) {
+            throw IllegalStateException("Agent '$name' has no tools available. Running in no-tools mode.")
+        }
+        
+        // 使用MCPClientManager检查工具可用性
+        if (!mcpClientManager.isToolAvailable(toolName)) {
+            throw IllegalArgumentException("Tool '$toolName' is not available for this agent. Available tools: $availableTools")
+        }
+        
+        // 通过MCPClientManager调用工具
+        return mcpClientManager.callTool(toolName, kwargs)
+    }
+    */
+    
+    /**
      * 获取Agent可用的工具列表
      */
     fun getAvailableToolsList(): List<String> {
@@ -60,11 +123,29 @@ Please provide helpful responses based on your training and knowledge."""
     }
     
     /**
+     * 检查工具是否可用 - MCP功能暂时注释
+     */
+    /*
+    suspend fun isToolAvailable(toolName: String): Boolean {
+        return mcpClientManager?.isToolAvailable(toolName) ?: false
+    }
+    */
+    
+    /**
      * 检查是否运行在无工具模式
      */
     fun isNoToolsMode(): Boolean {
-        return true
+        return true // MCP功能暂时注释，始终返回true
     }
+    
+    /**
+     * 检查是否配置了MCP - MCP功能暂时注释
+     */
+    /*
+    fun isMcpEnabled(): Boolean {
+        return mcpClientManager != null
+    }
+    */
     
     /**
      * 构建系统提示词 - 子类必须实现
@@ -114,6 +195,56 @@ Please provide helpful responses based on your training and knowledge."""
             var iterations = 0
             var currentOutput = modelOutput
             
+            // MCP功能暂时注释 - 循环解析模型输出，看是否需要工具调用
+            /*
+            while (iterations < maxToolIterations) {
+                memory.addMemory(mapOf("role" to "assistant", "content" to (currentOutput?.content ?: "")))
+                val toolCalls = model.parseToolCall(currentOutput)
+                
+                if (toolCalls == null || toolCalls.isEmpty()) {
+                    break
+                }
+                
+                var hasError = false
+                for (call in toolCalls) {
+                    val toolName = call["name"] as? String ?: continue
+                    val toolArguments = call["arguments"] as? Map<String, Any> ?: emptyMap()
+                    
+                    try {
+                        val result = callTool(toolName, toolArguments)
+                        memory.addMemory(mapOf(
+                            "role" to "tool",
+                            "name" to toolName,
+                            "status" to "success",
+                            "content" to result.toString()
+                        ))
+                    } catch (e: Exception) {
+                        hasError = true
+                        val errorMsg = e.message ?: "Unknown error"
+                        memory.addMemory(mapOf(
+                            "role" to "tool",
+                            "name" to toolName,
+                            "status" to "error",
+                            "content" to errorMsg
+                        ))
+                        println("Warning: Tool '$toolName' failed with error: $errorMsg")
+                    }
+                }
+                
+                // 把工具输出写入记忆并反馈给模型以便生成最终回答
+                val followupPrompt = buildPrompt()
+                val followupOutput = model.generateText(followupPrompt)
+                
+                // 再次验证模型输出有效性
+                if (followupOutput == null) {
+                    println("Warning: Model returned invalid output during iteration.")
+                    break
+                }
+                
+                currentOutput = followupOutput
+                iterations++
+            }
+            */
             // 将智能体回复写入记忆并返回
             memory.addMemory(mapOf("role" to "assistant", "content" to (currentOutput?.content ?: "")))
             _state.value = AgentState.IDLE
@@ -248,10 +379,54 @@ Please provide helpful responses based on your training and knowledge."""
     }
     
     /**
-     * 关闭Agent
+     * 异步初始化MCP连接 - MCP功能暂时注释
+     * 如果初始化失败，Agent将运行在无工具模式
+     */
+    /*
+    suspend fun initializeMcp(): Boolean {
+        if (mcpClientManager == null) {
+            availableTools = emptyList()
+            return false
+        }
+        
+        return try {
+            mcpClientManager.start()
+            
+            // 获取可用工具列表
+            availableTools = mcpClientManager.getAllTools()
+            
+            // 将工具规范注册到LLM模型中
+            val toolSpecs = mcpClientManager.getToolSpecs()
+            toolSpecs.forEach { spec ->
+                model.addTool(spec)
+            }
+            
+            println("Agent '$name' initialized with MCP tools: $availableTools")
+            true
+        } catch (e: Exception) {
+            // MCP初始化失败，降级为无工具模式
+            println("Warning: MCP initialization failed for Agent '$name': ${e.message}")
+            println("Agent '$name' will run in no-tools mode")
+            availableTools = emptyList()
+            false
+        }
+    }
+    */
+    
+    /**
+     * 关闭Agent - MCP功能暂时注释
      */
     fun close() {
-        // Agent关闭，无需特殊处理
+        // MCP功能暂时注释
+        /*
+        kotlinx.coroutines.runBlocking {
+            try {
+                mcpClientManager?.close()
+            } catch (e: Exception) {
+                println("Warning: Error closing MCPClientManager: ${e.message}")
+            }
+        }
+        */
         println("Agent '$name' closed")
     }
 }
