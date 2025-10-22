@@ -182,7 +182,7 @@ fun ParentDashboardScreen(
                                     modifier = Modifier.padding(bottom = 4.dp)
                                 )
                                 Text(
-                                    text = "任务类型：${if (task.taskType == com.aiteacher.domain.model.TaskType.TEACHING) "教学" else "复习"}",
+                                    text = "任务类型：${if (task.taskType == "TEACHING") "教学" else "复习"}",
                                     fontSize = 14.sp,
                                     modifier = Modifier.padding(bottom = 8.dp)
                                 )
@@ -202,6 +202,22 @@ fun ParentDashboardScreen(
                                 )
                             }
                         }
+                        com.aiteacher.presentation.viewmodel.LearningPhase.PLANNING -> {
+                            Text(
+                                text = "状态：制定教学计划中",
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+                        
+                        com.aiteacher.presentation.viewmodel.LearningPhase.LEARNING -> {
+                            Text(
+                                text = "状态：学习中",
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+                        
                         com.aiteacher.presentation.viewmodel.LearningPhase.COMPLETED -> {
                             Text(
                                 text = "状态：学习完成",
@@ -210,7 +226,7 @@ fun ParentDashboardScreen(
                             )
                             uiState.achievement?.let { achievement ->
                                 Text(
-                                    text = "成就：$achievement",
+                                    text = "成就：${achievement.title}",
                                     fontSize = 14.sp,
                                     modifier = Modifier.padding(bottom = 8.dp)
                                 )

@@ -52,6 +52,12 @@ android {
     }
 }
 
+val mcpVersion = "0.5.0"
+val slf4jVersion = "2.0.9"
+val anthropicVersion = "0.8.0"
+val ktorVersion = "3.1.1"
+
+
 dependencies {
     // Core Android
     implementation("androidx.core:core-ktx:1.12.0")
@@ -77,17 +83,30 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     
-    // OpenAI Kotlin SDK for DashScope
-    implementation("com.aallam.openai:openai-client:4.0.1")
+    // 阿里云DashScope SDK
+    implementation("com.alibaba:dashscope-sdk-java:2.21.12")
     
     // JSON serialization for tool call parsing
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     
     // MCP Kotlin SDK
-    implementation("io.modelcontextprotocol:kotlin-sdk:0.7.3")
+    implementation("io.modelcontextprotocol:kotlin-sdk:$mcpVersion")
+    implementation("org.slf4j:slf4j-nop:$slf4jVersion")
+    implementation("com.anthropic:anthropic-java:$anthropicVersion")
     
-    // Ktor client for HTTP requests
-    implementation("io.ktor:ktor-client-cio:3.2.1")
+    // Ktor dependencies for MCP server
+    implementation("io.ktor:ktor-client-core:$ktorVersion")
+    implementation("io.ktor:ktor-client-cio:$ktorVersion")
+    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
+    
+    // // Jackson for JSON processing - use older compatible version
+    // implementation("com.fasterxml.jackson.core:jackson-core:2.13.5")
+    // implementation("com.fasterxml.jackson.core:jackson-databind:2.13.5")
+    
+    // Kotlinx IO for stream processing
+    implementation("org.jetbrains.kotlinx:kotlinx-io-core:0.4.1")
+
     
     // Room Database
     implementation("androidx.room:room-runtime:2.8.2")

@@ -65,15 +65,46 @@ fun LearningScreen(
             }
             
             LearningPhase.PLAN_LOADED -> {
+                // 创建Domain模型
+                val domainPlan = com.aiteacher.domain.model.TeachingPlan(
+                    planId = uiState.currentPlan!!.id,
+                    studentId = studentId,
+                    date = "2024-01-01",
+                    grade = grade,
+                    currentChapter = uiState.currentPlan!!.currentChapter,
+                    reviewKnowledgePoints = emptyList(),
+                    newKnowledgePoints = emptyList(),
+                    estimatedDuration = uiState.currentPlan!!.estimatedDuration,
+                    status = com.aiteacher.domain.model.PlanStatus.PENDING
+                )
                 TeachingPlanScreen(
-                    plan = uiState.currentPlan!!,
-                    onStartLearning = { viewModel.startLearning(studentId) }
+                    plan = domainPlan,
+                    onStartLearning = { 
+                        viewModel.startLearning(domainPlan) 
+                    }
                 )
             }
             
             LearningPhase.TEACHING -> {
+                // 创建Domain模型的TeachingTask
+                val domainTask = com.aiteacher.domain.model.TeachingTask(
+                    taskId = uiState.currentTask!!.id,
+                    studentId = studentId,
+                    knowledgePointId = uiState.currentTask!!.knowledgePointId,
+                    taskType = com.aiteacher.domain.model.TaskType.TEACHING,
+                    content = com.aiteacher.domain.model.TeachingContent(
+                        text = uiState.currentTask!!.content,
+                        images = emptyList(),
+                        audio = null,
+                        ppt = null
+                    ),
+                    questions = emptyList(),
+                    status = com.aiteacher.domain.model.TaskStatus.IN_PROGRESS,
+                    currentQuestionIndex = 0,
+                    noResponseCount = 0
+                )
                 TeachingScreen(
-                    task = uiState.currentTask!!,
+                    task = domainTask,
                     feedback = uiState.feedback,
                     onAnswerSubmit = { answer -> viewModel.handleStudentAnswer(answer) },
                     onContinueNext = { viewModel.continueToNextTask() }
@@ -81,19 +112,46 @@ fun LearningScreen(
             }
             
             LearningPhase.TESTING -> {
+                // 创建Domain模型的TestingTask
+                val domainTestingTask = com.aiteacher.domain.model.TestingTask(
+                    taskId = uiState.currentTestingTask!!.id,
+                    studentId = studentId,
+                    knowledgePointIds = emptyList(),
+                    questions = emptyList(),
+                    status = com.aiteacher.domain.model.TaskStatus.IN_PROGRESS,
+                    currentQuestionIndex = uiState.currentTestingTask!!.currentQuestionIndex,
+                    startTime = "2024-01-01T00:00:00",
+                    timeLimit = 30
+                )
                 TestingScreen(
-                    testingTask = uiState.currentTestingTask!!,
-                    result = uiState.currentTestingResult,
+                    testingTask = domainTestingTask,
+                    result = null, // 暂时设为null
                     feedback = uiState.feedback,
                     onAnswerSubmit = { answer, imageAnswer -> 
-                        viewModel.submitTestingAnswer(answer, imageAnswer) 
+                        viewModel.submitTestingAnswer(answer, "question_id") 
                     }
+                )
+            }
+            
+            LearningPhase.PLANNING -> {
+                Text(
+                    text = "正在制定教学计划...",
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+            
+            LearningPhase.LEARNING -> {
+                Text(
+                    text = "正在学习中...",
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(16.dp)
                 )
             }
             
             LearningPhase.COMPLETED -> {
                 CompletedScreen(
-                    achievement = uiState.achievement ?: "学习完成！",
+                    achievement = uiState.achievement?.title ?: "学习完成！",
                     onRestart = { viewModel.loadTodayTeachingPlan(studentId) },
                     onNavigateToParent = onNavigateToParent,
                     onBackToHome = onBackToHome

@@ -1,7 +1,6 @@
 package com.aiteacher.ai.agent
 
 import com.aiteacher.ai.service.LLMModel
-import com.aiteacher.ai.service.LLMOutput
 import com.aiteacher.ai.mcp.MCPClientManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,8 +49,8 @@ abstract class BaseAgent(
                     
                     // 将工具规范注册到LLM模型中
                     val toolSpecs = mcpClientManager.getToolSpecs()
-                    toolSpecs.forEach { spec ->
-                        model.addTool(spec)
+                    toolSpecs.forEach { (name, spec) ->
+                        model.addTool(spec as Map<String, Any>)
                     }
                     
                     println("Agent '$name' initialized with MCP tools: $availableTools")
@@ -129,7 +128,7 @@ Please provide helpful responses based on your training and knowledge."""
     /**
      * 检查工具是否可用
      */
-    fun isToolAvailable(toolName: String): Boolean {
+    suspend fun isToolAvailable(toolName: String): Boolean {
         return mcpClientManager?.isToolAvailable(toolName) ?: false
     }
     
@@ -375,6 +374,39 @@ Please provide helpful responses based on your training and knowledge."""
      */
     fun resume() {
         running.set(true)
+    }
+    
+    /**
+     * 异步初始化MCP连接
+     * 如果初始化失败，Agent将运行在无工具模式
+     */
+    suspend fun initializeMcp(): Boolean {
+        if (mcpClientManager == null) {
+            availableTools = emptyList()
+            return false
+        }
+        
+        return try {
+            mcpClientManager.start()
+            
+            // 获取可用工具列表
+            availableTools = mcpClientManager.getAllTools()
+            
+            // 将工具规范注册到LLM模型中
+            val toolSpecs = mcpClientManager.getToolSpecs()
+            toolSpecs.forEach { (name, spec) ->
+                model.addTool(spec as Map<String, Any>)
+            }
+            
+            println("Agent '$name' initialized with MCP tools: $availableTools")
+            true
+        } catch (e: Exception) {
+            // MCP初始化失败，降级为无工具模式
+            println("Warning: MCP initialization failed for Agent '$name': ${e.message}")
+            println("Agent '$name' will run in no-tools mode")
+            availableTools = emptyList()
+            false
+        }
     }
     
     /**
