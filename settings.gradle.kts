@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AI Teacher"
+rootProject.name = "AITeacher"
 include(":app")
