@@ -12,11 +12,8 @@ data class UserEntity(
     @PrimaryKey
     val userId: String,
     val userType: UserType,
-    // 学生特有信息（仅当userType为STUDENT时有效）
-    val studentId: String? = null,
-    val studentName: String? = null,
-    val grade: Int? = null,
-    val currentChapter: String? = null
+    // 当用户类型为学生时，关联的学生ID
+    val studentId: String? = null
 )
 
 /**

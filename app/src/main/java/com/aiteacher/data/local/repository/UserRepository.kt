@@ -17,16 +17,13 @@ class UserRepository(private val userDao: UserDao) {
     suspend fun createUser(
         userId: String,
         userType: UserType,
-        studentInfo: Student? = null
+        studentId: String? = null
     ): Result<UserEntity> {
         return try {
             val user = UserEntity(
                 userId = userId,
                 userType = userType,
-                studentId = studentInfo?.studentId,
-                studentName = studentInfo?.studentName,
-                grade = studentInfo?.grade,
-                currentChapter = studentInfo?.currentChapter
+                studentId = studentId
             )
             
             userDao.insertUser(user)
