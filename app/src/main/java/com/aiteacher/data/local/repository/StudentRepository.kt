@@ -16,64 +16,102 @@ class StudentRepository(private val studentDao: StudentDao) {
     /**
      * 根据学生ID获取学生信息
      */
-    suspend fun getStudentById(studentId: String): Student? {
-        val entity = studentDao.getStudentById(studentId)
-        return entity?.toDomainModel()
+    suspend fun getStudentById(studentId: String): Result<Student?> {
+        return try {
+            val entity = studentDao.getStudentById(studentId)
+            Result.success(entity?.toDomainModel())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 根据学生ID获取学生信息（Flow版本）
      */
-    fun getStudentByIdFlow(studentId: String): Flow<Student?> {
+    fun getStudentByIdFlow(studentId: String): Flow<Result<Student?>> {
         return studentDao.getStudentByIdFlow(studentId).map { entity ->
-            entity?.toDomainModel()
+            try {
+                Result.success(entity?.toDomainModel())
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
     }
     
     /**
      * 获取所有学生
      */
-    suspend fun getAllStudents(): List<Student> {
-        return studentDao.getAllStudents().map { it.toDomainModel() }
+    suspend fun getAllStudents(): Result<List<Student>> {
+        return try {
+            val students = studentDao.getAllStudents().map { it.toDomainModel() }
+            Result.success(students)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 获取所有学生（Flow版本）
      */
-    fun getAllStudentsFlow(): Flow<List<Student>> {
+    fun getAllStudentsFlow(): Flow<Result<List<Student>>> {
         return studentDao.getAllStudentsFlow().map { entities ->
-            entities.map { it.toDomainModel() }
+            try {
+                val students = entities.map { it.toDomainModel() }
+                Result.success(students)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
     }
     
     /**
      * 插入或更新学生信息
      */
-    suspend fun saveStudent(student: Student) {
-        val entity = student.toEntity()
-        studentDao.insertStudent(entity)
+    suspend fun saveStudent(student: Student): Result<Unit> {
+        return try {
+            val entity = student.toEntity()
+            studentDao.insertStudent(entity)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 更新学生信息
      */
-    suspend fun updateStudent(student: Student) {
-        val entity = student.toEntity()
-        studentDao.updateStudent(entity)
+    suspend fun updateStudent(student: Student): Result<Unit> {
+        return try {
+            val entity = student.toEntity()
+            studentDao.updateStudent(entity)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 删除学生
      */
-    suspend fun deleteStudent(studentId: String) {
-        studentDao.deleteStudentById(studentId)
+    suspend fun deleteStudent(studentId: String): Result<Unit> {
+        return try {
+            studentDao.deleteStudentById(studentId)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 检查学生是否存在
      */
-    suspend fun studentExists(studentId: String): Boolean {
-        return studentDao.getStudentById(studentId) != null
+    suspend fun studentExists(studentId: String): Result<Boolean> {
+        return try {
+            val exists = studentDao.getStudentById(studentId) != null
+            Result.success(exists)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }
 
@@ -85,8 +123,7 @@ private fun StudentEntity.toDomainModel(): Student {
         studentId = this.studentId,
         studentName = this.studentName,
         grade = this.grade,
-        currentChapter = this.currentChapter,
-        learningProgress =         LearningProgress(
+        learningProgress = LearningProgress(
             notTaught = emptyList(),
             taughtToReview = emptyList(),
             notMastered = emptyList(),
@@ -105,7 +142,6 @@ private fun Student.toEntity(): StudentEntity {
         studentId = this.studentId,
         studentName = this.studentName,
         grade = this.grade,
-        currentChapter = this.currentChapter,
         createdAt = System.currentTimeMillis(),
         updatedAt = System.currentTimeMillis()
     )

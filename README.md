@@ -1,5 +1,5 @@
 # AI教师系统项目
-*最后更新时间: 2025年10月14日*
+*最后更新时间: 2025年10月22日*
 
 ## 项目概述
 
@@ -24,7 +24,6 @@ AI Teacher/
 │   ├── comprehensive_examples.py       # 综合使用示例
 │   ├── tool_example.json               # 工具配置示例
 │   ├── get_weather.json                # 天气工具示例
-│   ├── ask_human.json                  # 询问人类工具示例
 │   └── finish.json                     # 完成工具示例
 ├── doc/                                # 项目文档目录
 │   ├── 01_市场调研报告.md              # 市场调研分析
@@ -60,6 +59,12 @@ AI Teacher/
 │           │   └── navigation/         # 导航组件
 │           │       ├── AITeacherNavigation.kt
 │           │       └── Screen.kt
+│           ├── data/                   # 数据层
+│           │   └── local/              # 本地数据
+│           │       ├── dao/            # 数据访问对象
+│           │       ├── database/       # 数据库定义
+│           │       ├── entity/         # 数据实体
+│           │       └── repository/     # 数据仓库
 │           └── domain/                 # 领域层
 │               ├── model/              # 数据模型
 │               │   ├── Student.kt
@@ -218,6 +223,70 @@ enum class MasteryStatus {
 }
 ```
 
+## 数据库设计
+
+### 独立数据库结构
+为了更好地组织和管理数据，我们为不同类型的数据创建了独立的数据库：
+
+1. **学生数据库** (AITeacherDatabase) - 存储学生基本信息
+2. **用户数据库** (UserDatabase) - 存储用户信息（家长和学生）
+3. **知识数据库** (KnowledgeDatabase) - 存储知识点信息
+4. **题目数据库** (QuestionDatabase) - 存储题目信息
+
+### 用户实体 (UserEntity)
+```kotlin
+@Entity(tableName = "users")
+data class UserEntity(
+    @PrimaryKey
+    val userId: String,
+    val userType: UserType,
+    // 学生特有信息（仅当userType为STUDENT时有效）
+    val studentId: String? = null,
+    val studentName: String? = null,
+    val grade: Int? = null,
+    val currentChapter: String? = null
+)
+```
+
+### 用户类型 (UserType)
+```kotlin
+enum class UserType {
+    PARENT,     // 家长
+    STUDENT     // 学生
+}
+```
+
+### 知识点实体 (KnowledgeEntity)
+```kotlin
+@Entity(tableName = "knowledge_base")
+data class KnowledgeEntity(
+    @PrimaryKey
+    val knowledgeId: String,           // 知识点ID
+    val subject: String,               // 学科
+    val grade: Int,                    // 年级
+    val chapter: String,               // 章节
+    val concept: String,               // 概念描述
+    val applicationMethods: List<String>, // 应用方法列表
+    val keywords: List<String>         // 关键词列表
+)
+```
+
+### 题目实体 (QuestionEntity)
+```kotlin
+@Entity(tableName = "question_base")
+data class QuestionEntity(
+    @PrimaryKey
+    val questionId: String,             // 题目ID
+    val subject: String,               // 学科
+    val grade: Int,                    // 年级
+    val questionText: String,          // 题目内容
+    val answer: String,                // 答案
+    val questionType: String,          // 题目类型
+    val difficulty: Int,               // 难度等级
+    val relatedKnowledgeIds: List<String> // 关联的知识点ID列表
+)
+```
+
 ## MVP流程实现
 
 ### 1. 用户登录
@@ -299,6 +368,27 @@ AI教师系统具有广阔的市场前景，通过差异化定位和核心功能
 
 ## 最新更新
 
+### v1.3.0 数据库分离 (2025年10月22日)
+- 🔄 将单一数据库拆分为四个独立数据库：学生数据库、用户数据库、知识数据库、题目数据库
+- 🔄 创建独立的数据库类：UserDatabase、KnowledgeDatabase、QuestionDatabase
+- 🔄 更新Application类以支持多个数据库实例
+- 🔄 更新测试类以使用新的独立数据库结构
+
+### v1.2.0 知识数据库实现 (2025年10月22日)
+- 🔄 实现知识数据库，支持知识点和题目存储
+- 🔄 添加KnowledgeEntity和QuestionEntity实体类
+- 🔄 添加KnowledgeDao和QuestionDao数据访问对象
+- 🔄 扩展AITeacherDatabase以支持知识库表和题库表
+- 🔄 添加KnowledgeRepository和QuestionRepository用于业务逻辑处理
+- 🔄 提供完整的知识数据库设计文档
+
+### v1.1.0 用户数据库实现 (2025年10月22日)
+- 🔄 实现用户数据库，支持家长和学生两种用户类型
+- 🔄 添加UserEntity实体类和UserDao数据访问对象
+- 🔄 扩展AITeacherDatabase以支持用户表
+- 🔄 添加UserRepository用于业务逻辑处理
+- 🔄 提供完整的用户数据库设计文档
+
 ### v1.0.0 MVP版本 (2025年10月14日)
 - ✅ 完成MVP核心功能实现
 - ✅ 实现完整用户界面流程
@@ -314,5 +404,3 @@ AI教师系统具有广阔的市场前景，通过差异化定位和核心功能
 - **状态管理**: StateFlow + Compose State
 
 ---
-
-

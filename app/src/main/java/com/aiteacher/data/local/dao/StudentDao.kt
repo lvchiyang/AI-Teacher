@@ -22,6 +22,12 @@ interface StudentDao {
     @Query("SELECT * FROM students")
     fun getAllStudentsFlow(): Flow<List<StudentEntity>>
     
+    @Query("SELECT * FROM students WHERE grade = :grade")
+    suspend fun getStudentsByGrade(grade: Int): List<StudentEntity>
+    
+    @Query("SELECT * FROM students ORDER BY created_at DESC LIMIT :limit")
+    suspend fun getRecentStudents(limit: Int): List<StudentEntity>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStudent(student: StudentEntity)
     
