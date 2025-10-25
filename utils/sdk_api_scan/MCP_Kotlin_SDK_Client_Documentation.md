@@ -15,8 +15,8 @@ import io.modelcontextprotocol.kotlin.sdk.client.SseClientTransport
 import io.modelcontextprotocol.kotlin.sdk.client.WebSocketClientTransport
 import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpClientTransport
 import io.modelcontextprotocol.kotlin.sdk.shared.Implementation
-import io.modelcontextprotocol.kotlin.sdk.shared.ClientOptions
-import io.modelcontextprotocol.kotlin.sdk.shared.ClientCapabilities
+import io.modelcontextprotocol.kotlin.sdk.client.ClientOptions
+import io.modelcontextprotocol.kotlin.sdk.ClientCapabilities
 import io.modelcontextprotocol.kotlin.sdk.shared.RequestOptions
 import io.modelcontextprotocol.kotlin.sdk.CallToolRequest
 import io.modelcontextprotocol.kotlin.sdk.ReadResourceRequest
@@ -40,9 +40,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
-import kotlinx.io.asSink
-import kotlinx.io.asSource
-import kotlinx.io.buffered
+import kotlinx.io.Source
+import kotlinx.io.Sink
 import kotlinx.coroutines.runBlocking
 ```
 
@@ -52,9 +51,9 @@ import kotlinx.coroutines.runBlocking
 
 ```kotlin
 public open class Client(
-    private val clientInfo: Implementation, 
-    options: ClientOptions = ClientOptions()
-) : Protocol(options)
+    public val clientInfo: Implementation, 
+    public val options: ClientOptions
+)
 ```
 
 #### 主要功能
@@ -68,9 +67,9 @@ public open class Client(
 
 ```kotlin
 public class ClientOptions(
-    public val capabilities: ClientCapabilities = ClientCapabilities(),
-    enforceStrictCapabilities: Boolean = true,
-) : ProtocolOptions(enforceStrictCapabilities = enforceStrictCapabilities)
+    public val capabilities: ClientCapabilities, 
+    public val enforceStrictCapabilities: Boolean = true
+)
 ```
 
 #### 客户端能力配置
@@ -79,7 +78,8 @@ public class ClientOptions(
 ClientCapabilities(
     roots = ClientCapabilities.Roots(listChanged = true),
     sampling = JsonObject(emptyMap()),
-    elicitation = JsonObject(emptyMap())
+    elicitation = JsonObject(emptyMap()),
+    experimental = null
 )
 ```
 
@@ -95,7 +95,10 @@ val client = Client(
     ),
     options = ClientOptions(
         capabilities = ClientCapabilities(
-            roots = ClientCapabilities.Roots(listChanged = true)
+            roots = ClientCapabilities.Roots(listChanged = true),
+            sampling = JsonObject(emptyMap()),
+            elicitation = JsonObject(emptyMap()),
+            experimental = null
         )
     )
 )
@@ -120,13 +123,9 @@ val serverInstructions = client.serverInstructions
 适用于命令行工具和进程间通信。
 
 ```kotlin
-import kotlinx.io.asSink
-import kotlinx.io.asSource
-import kotlinx.io.buffered
-
 val transport = StdioClientTransport(
-    input = processInputStream.asSource().buffered(),
-    output = processOutputStream.asSink().buffered()
+    input = processInputStream as Source,
+    output = processOutputStream as Sink
 )
 
 client.connect(transport)
@@ -143,7 +142,8 @@ val httpClient = HttpClient {
 
 val transport = WebSocketClientTransport(
     client = httpClient,
-    urlString = "ws://localhost:8080/mcp"
+    urlString = "ws://localhost:8080/mcp",
+    requestBuilder = { /* 可选：自定义请求构建器 */ }
 )
 
 client.connect(transport)
@@ -156,7 +156,9 @@ client.connect(transport)
 ```kotlin
 val transport = SseClientTransport(
     client = httpClient,
-    urlString = "http://localhost:8080/sse"
+    urlString = "http://localhost:8080/sse",
+    reconnectionTime = null, // 可选：重连时间
+    requestBuilder = { /* 可选：自定义请求构建器 */ }
 )
 
 client.connect(transport)
@@ -167,7 +169,9 @@ client.connect(transport)
 ```kotlin
 val transport = StreamableHttpClientTransport(
     client = httpClient,
-    url = "http://localhost:8080/stream"
+    url = "http://localhost:8080/stream",
+    reconnectionTime = null, // 可选：重连时间
+    requestBuilder = { /* 可选：自定义请求构建器 */ }
 )
 
 client.connect(transport)
@@ -388,8 +392,8 @@ client.setElicitationHandler { elicitation ->
 ### 会话生命周期
 
 ```kotlin
-// 注意：这些方法在 Protocol 基类中，需要通过传输层设置
-// 或者通过自定义传输实现来处理连接事件
+// 注意：连接事件处理需要通过传输层实现
+// 或者通过自定义传输类来处理连接状态变化
 ```
 
 ## 完整示例
@@ -411,8 +415,8 @@ class WeatherClient : AutoCloseable {
         
         // 创建传输
         val transport = StdioClientTransport(
-            input = process.inputStream.asSource().buffered(),
-            output = process.outputStream.asSink().buffered()
+            input = process.inputStream as Source,
+            output = process.outputStream as Sink
         )
         
         // 连接到服务器
@@ -500,8 +504,8 @@ class MCPAnthropicClient : AutoCloseable {
         val process = ProcessBuilder("node", serverScriptPath).start()
         
         val transport = StdioClientTransport(
-            input = process.inputStream.asSource().buffered(),
-            output = process.outputStream.asSink().buffered()
+            input = process.inputStream as Source,
+            output = process.outputStream as Sink
         )
         
         mcpClient.connect(transport)

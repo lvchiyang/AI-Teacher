@@ -346,8 +346,8 @@ fun createSimpleClient(): Client {
 
 ```kotlin
 import kotlinx.coroutines.runBlocking
-import kotlinx.io.asSink
-import kotlinx.io.asSource
+import kotlinx.io.Source
+import kotlinx.io.Sink
 
 fun main() = runBlocking {
     // 创建服务器和客户端
@@ -356,8 +356,8 @@ fun main() = runBlocking {
     
     // 创建传输
     val transport = StdioServerTransport(
-        System.`in`.asInput(),
-        System.out.asSink().buffered()
+        System.`in` as Source,
+        System.out as Sink
     )
     
     // 连接服务器
@@ -385,14 +385,14 @@ fun main() = runBlocking {
 ```kotlin
 // 服务器端
 val transport = StdioServerTransport(
-    inputStream = System.`in`.asInput(),
-    outputStream = System.out.asSink().buffered()
+    inputStream = System.`in` as Source,
+    outputStream = System.out as Sink
 )
 
 // 客户端
 val transport = StdioClientTransport(
-    input = processInputStream,
-    output = processOutputStream
+    input = processInputStream as Source,
+    output = processOutputStream as Sink
 )
 ```
 
@@ -420,7 +420,8 @@ val httpClient = HttpClient {
 
 val transport = WebSocketClientTransport(
     client = httpClient,
-    urlString = "ws://localhost:8080/mcp"
+    urlString = "ws://localhost:8080/mcp",
+    requestBuilder = { /* 可选：自定义请求构建器 */ }
 )
 ```
 
@@ -440,9 +441,11 @@ embeddedServer(CIO, host = "127.0.0.1", port = 8080) {
 }.startSuspend(wait = true)
 
 // 客户端
-val transport = SSEClientTransport(
+val transport = SseClientTransport(
     client = httpClient,
-    urlString = "http://localhost:8080/sse"
+    urlString = "http://localhost:8080/sse",
+    reconnectionTime = null, // 可选：重连时间
+    requestBuilder = { /* 可选：自定义请求构建器 */ }
 )
 ```
 
@@ -640,8 +643,8 @@ class AIAssistantClient : AutoCloseable {
         val process = ProcessBuilder("node", serverPath).start()
         
         val transport = StdioClientTransport(
-            input = process.inputStream.asSource().buffered(),
-            output = process.outputStream.asSink().buffered()
+            input = process.inputStream as Source,
+            output = process.outputStream as Sink
         )
         
         client.connect(transport)

@@ -26,15 +26,14 @@ import io.modelcontextprotocol.kotlin.sdk.TextContent
 import io.modelcontextprotocol.kotlin.sdk.TextResourceContents
 import io.modelcontextprotocol.kotlin.sdk.PromptMessage
 import io.modelcontextprotocol.kotlin.sdk.Role
-import io.modelcontextprotocol.kotlin.sdk.RegisteredTool
-import io.modelcontextprotocol.kotlin.sdk.RegisteredPrompt
-import io.modelcontextprotocol.kotlin.sdk.RegisteredResource
+import io.modelcontextprotocol.kotlin.sdk.server.RegisteredTool
+import io.modelcontextprotocol.kotlin.sdk.server.RegisteredPrompt
+import io.modelcontextprotocol.kotlin.sdk.server.RegisteredResource
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
-import kotlinx.io.asInput
-import kotlinx.io.asSink
-import kotlinx.io.buffered
+import kotlinx.io.Source
+import kotlinx.io.Sink
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Job
 import io.ktor.server.engine.embeddedServer
@@ -56,9 +55,9 @@ import io.ktor.server.routing.post
 
 ```kotlin
 public open class Server(
-    protected val serverInfo: Implementation,
-    protected val options: ServerOptions,
-    protected val instructionsProvider: (() -> String)? = null,
+    public val serverInfo: Implementation,
+    public val options: ServerOptions,
+    public val instructionsProvider: (() -> String)? = null,
 )
 ```
 
@@ -73,8 +72,8 @@ public open class Server(
 ```kotlin
 public class ServerOptions(
     public val capabilities: ServerCapabilities, 
-    enforceStrictCapabilities: Boolean = true
-) : ProtocolOptions(enforceStrictCapabilities = enforceStrictCapabilities)
+    public val enforceStrictCapabilities: Boolean = true
+)
 ```
 
 #### 服务器能力配置
@@ -86,7 +85,10 @@ ServerCapabilities(
     resources = ServerCapabilities.Resources(
         subscribe = true, 
         listChanged = true
-    )
+    ),
+    experimental = null,
+    logging = null,
+    sampling = null
 )
 ```
 
@@ -212,8 +214,8 @@ server.addResource(
 
 ```kotlin
 val transport = StdioServerTransport(
-    inputStream = System.`in`.asInput(),
-    outputStream = System.out.asSink().buffered()
+    inputStream = System.`in` as Source,
+    outputStream = System.out as Sink
 )
 
 runBlocking {
@@ -427,8 +429,8 @@ fun createWeatherServer(): Server {
 fun main() = runBlocking {
     val server = createWeatherServer()
     val transport = StdioServerTransport(
-        System.`in`.asInput(),
-        System.out.asSink().buffered()
+        System.`in` as Source,
+        System.out as Sink
     )
     
     val session = server.connect(transport)
@@ -467,7 +469,10 @@ fun main() = runBlocking {
 // 作为独立进程运行
 fun main() = runBlocking {
     val server = createServer()
-    val transport = StdioServerTransport()
+    val transport = StdioServerTransport(
+        System.`in` as Source,
+        System.out as Sink
+    )
     server.connect(transport)
 }
 ```
