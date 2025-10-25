@@ -47,6 +47,12 @@ data class TeachingPlanEntity(
     
     val status: String, // active, completed, paused
     
+    @ColumnInfo(name = "total_tasks")
+    val totalTasks: Int = 0, // 计划下的任务总个数
+    
+    @ColumnInfo(name = "completed_tasks")
+    val completedTasks: Int = 0, // 已完成任务数
+    
     @ColumnInfo(name = "created_at")
     val createdAt: Long,
     

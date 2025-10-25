@@ -36,8 +36,13 @@ class UserRepository(private val userDao: UserDao) {
     /**
      * 获取用户信息
      */
-    suspend fun getUserById(userId: String): UserEntity? {
-        return userDao.getUserById(userId)
+    suspend fun getUserById(userId: String): Result<UserEntity?> {
+        return try {
+            val user = userDao.getUserById(userId)
+            Result.success(user)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     /**
@@ -67,14 +72,36 @@ class UserRepository(private val userDao: UserDao) {
     /**
      * 获取指定类型的用户
      */
-    suspend fun getUsersByType(userType: UserType): List<UserEntity> {
-        return userDao.getUsersByType(userType)
+    suspend fun getUsersByType(userType: UserType): Result<List<UserEntity>> {
+        return try {
+            val users = userDao.getUsersByType(userType)
+            Result.success(users)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     /**
      * 获取所有用户
      */
-    suspend fun getAllUsers(): List<UserEntity> {
-        return userDao.getAllUsers()
+    suspend fun getAllUsers(): Result<List<UserEntity>> {
+        return try {
+            val users = userDao.getAllUsers()
+            Result.success(users)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 检查用户是否存在
+     */
+    suspend fun userExists(userId: String): Result<Boolean> {
+        return try {
+            val user = userDao.getUserById(userId)
+            Result.success(user != null)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

@@ -28,6 +28,12 @@ interface SessionDao {
     @Query("SELECT * FROM sessions ORDER BY created_at DESC")
     fun getAllSessionsFlow(): Flow<List<SessionEntity>>
     
+    @Query("SELECT * FROM sessions WHERE tags LIKE '%' || :tag || '%' ORDER BY created_at DESC")
+    suspend fun getSessionsByTag(tag: String): List<SessionEntity>
+    
+    @Query("SELECT * FROM sessions ORDER BY created_at DESC LIMIT :limit")
+    suspend fun getRecentSessions(limit: Int): List<SessionEntity>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSession(session: SessionEntity)
     

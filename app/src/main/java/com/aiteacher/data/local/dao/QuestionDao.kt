@@ -34,6 +34,15 @@ interface QuestionDao {
     @Query("SELECT * FROM question_base")
     fun getAllQuestionsFlow(): Flow<List<QuestionEntity>>
     
+    @Query("SELECT * FROM question_base WHERE questionText LIKE '%' || :keyword || '%' OR answer LIKE '%' || :keyword || '%'")
+    suspend fun searchQuestions(keyword: String): List<QuestionEntity>
+    
+    @Query("SELECT * FROM question_base WHERE subject = :subject AND grade = :grade AND question_type = :questionType")
+    suspend fun getQuestionsBySubjectGradeAndType(subject: String, grade: Int, questionType: String): List<QuestionEntity>
+    
+    @Query("SELECT * FROM question_base WHERE subject = :subject AND grade = :grade AND difficulty = :difficulty")
+    suspend fun getQuestionsBySubjectGradeAndDifficulty(subject: String, grade: Int, difficulty: Int): List<QuestionEntity>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertQuestion(question: QuestionEntity)
     

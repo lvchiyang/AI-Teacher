@@ -12,29 +12,49 @@ class KnowledgeRepository(private val knowledgeDao: KnowledgeDao) {
     /**
      * 根据ID获取知识点
      */
-    suspend fun getKnowledgeById(knowledgeId: String): KnowledgeEntity? {
-        return knowledgeDao.getKnowledgeById(knowledgeId)
+    suspend fun getKnowledgeById(knowledgeId: String): Result<KnowledgeEntity?> {
+        return try {
+            val knowledge = knowledgeDao.getKnowledgeById(knowledgeId)
+            Result.success(knowledge)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 根据学科和年级获取知识点
      */
-    suspend fun getKnowledgeBySubjectAndGrade(subject: String, grade: Int): List<KnowledgeEntity> {
-        return knowledgeDao.getKnowledgeBySubjectAndGrade(subject, grade)
+    suspend fun getKnowledgeBySubjectAndGrade(subject: String, grade: Int): Result<List<KnowledgeEntity>> {
+        return try {
+            val knowledgeList = knowledgeDao.getKnowledgeBySubjectAndGrade(subject, grade)
+            Result.success(knowledgeList)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 根据章节获取知识点
      */
-    suspend fun getKnowledgeByChapter(chapter: String): List<KnowledgeEntity> {
-        return knowledgeDao.getKnowledgeByChapter(chapter)
+    suspend fun getKnowledgeByChapter(chapter: String): Result<List<KnowledgeEntity>> {
+        return try {
+            val knowledgeList = knowledgeDao.getKnowledgeByChapter(chapter)
+            Result.success(knowledgeList)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 获取所有知识点
      */
-    suspend fun getAllKnowledge(): List<KnowledgeEntity> {
-        return knowledgeDao.getAllKnowledge()
+    suspend fun getAllKnowledge(): Result<List<KnowledgeEntity>> {
+        return try {
+            val knowledgeList = knowledgeDao.getAllKnowledge()
+            Result.success(knowledgeList)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
@@ -80,6 +100,30 @@ class KnowledgeRepository(private val knowledgeDao: KnowledgeDao) {
         return try {
             knowledgeDao.deleteKnowledgeById(knowledgeId)
             Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 根据关键词搜索知识点
+     */
+    suspend fun searchKnowledge(keyword: String): Result<List<KnowledgeEntity>> {
+        return try {
+            val knowledgeList = knowledgeDao.searchKnowledge(keyword)
+            Result.success(knowledgeList)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 根据知识点ID列表获取知识点
+     */
+    suspend fun getKnowledgeByIds(knowledgeIds: List<String>): Result<List<KnowledgeEntity>> {
+        return try {
+            val knowledgeList = knowledgeDao.getKnowledgeByIds(knowledgeIds)
+            Result.success(knowledgeList)
         } catch (e: Exception) {
             Result.failure(e)
         }

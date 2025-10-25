@@ -31,6 +31,12 @@ interface MessageDao {
     @Query("SELECT * FROM messages ORDER BY created_at ASC")
     fun getAllMessagesFlow(): Flow<List<MessageEntity>>
     
+    @Query("SELECT * FROM messages WHERE sessionId = :sessionId ORDER BY created_at DESC LIMIT 1")
+    suspend fun getLatestMessageBySessionId(sessionId: String): MessageEntity?
+    
+    @Query("SELECT * FROM messages ORDER BY created_at DESC LIMIT :limit")
+    suspend fun getLatestMessages(limit: Int): List<MessageEntity>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: MessageEntity)
     

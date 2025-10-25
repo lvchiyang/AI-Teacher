@@ -28,6 +28,12 @@ interface KnowledgeDao {
     @Query("SELECT * FROM knowledge_base")
     fun getAllKnowledgeFlow(): Flow<List<KnowledgeEntity>>
     
+    @Query("SELECT * FROM knowledge_base WHERE concept LIKE '%' || :keyword || '%' OR chapter LIKE '%' || :keyword || '%' OR keywords LIKE '%' || :keyword || '%'")
+    suspend fun searchKnowledge(keyword: String): List<KnowledgeEntity>
+    
+    @Query("SELECT * FROM knowledge_base WHERE knowledgeId IN (:knowledgeIds)")
+    suspend fun getKnowledgeByIds(knowledgeIds: List<String>): List<KnowledgeEntity>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertKnowledge(knowledge: KnowledgeEntity)
     
@@ -42,6 +48,9 @@ interface KnowledgeDao {
     
     @Query("DELETE FROM knowledge_base WHERE knowledgeId = :knowledgeId")
     suspend fun deleteKnowledgeById(knowledgeId: String)
+    
+    @Query("DELETE FROM knowledge_base WHERE knowledgeId IN (:knowledgeIds)")
+    suspend fun deleteKnowledgeByIds(knowledgeIds: List<String>)
     
     @Query("DELETE FROM knowledge_base")
     suspend fun deleteAllKnowledge()

@@ -11,21 +11,25 @@ import java.util.*
 class TeachingPlanUseCase {
     
     /**
-     * 制定今日教学计划
+     * 制定教学计划
      */
-    suspend fun createTodayTeachingPlan(studentId: String): Result<TeachingPlan> {
+    suspend fun createTeachingPlan(studentId: String): Result<TeachingPlan> {
         return try {
             // MVP简化：直接返回模拟的教学计划
             val plan = TeachingPlan(
                 planId = generatePlanId(),
                 studentId = studentId,
-                date = getCurrentDate(),
-                grade = 7, // 默认七年级
-                currentChapter = "第一章 有理数",
-                reviewKnowledgePoints = listOf("7_1_1_1", "7_1_1_2"), // 模拟复习知识点
-                newKnowledgePoints = listOf("7_1_1_3"), // 模拟新学知识点
-                estimatedDuration = 30,
-                status = PlanStatus.PENDING
+                title = "初中数学基础课程",
+                description = "本课程将系统地介绍初中数学的基础知识",
+                subject = "数学",
+                gradeLevel = "初中",
+                totalDays = 30,
+                startDate = getCurrentDate(),
+                endDate = "2025-11-30",
+                status = "active",
+                tags = listOf("数学", "初中", "基础"),
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
             )
             
             Result.success(plan)
@@ -35,12 +39,12 @@ class TeachingPlanUseCase {
     }
     
     /**
-     * 获取今日教学计划
+     * 获取教学计划
      */
-    suspend fun getTodayTeachingPlan(studentId: String): Result<TeachingPlan> {
+    suspend fun getTeachingPlan(studentId: String): Result<TeachingPlan> {
         return try {
             // 这里应该从数据库查询，暂时返回新创建的计划
-            createTodayTeachingPlan(studentId)
+            createTeachingPlan(studentId)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -51,7 +55,7 @@ class TeachingPlanUseCase {
      */
     suspend fun updateTeachingPlanStatus(
         planId: String,
-        newStatus: PlanStatus
+        newStatus: String
     ): Result<Unit> {
         return try {
             // 这里应该更新数据库中的计划状态
@@ -73,12 +77,5 @@ class TeachingPlanUseCase {
      */
     private fun getCurrentDate(): String {
         return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-    }
-    
-    /**
-     * 计算预计时长
-     */
-    private fun calculateEstimatedDuration(reviewCount: Int, newCount: Int): Int {
-        return reviewCount * 5 + newCount * 15 // 复习5分钟，新学15分钟
     }
 }

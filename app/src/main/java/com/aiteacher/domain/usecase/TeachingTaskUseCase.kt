@@ -12,34 +12,50 @@ class TeachingTaskUseCase {
      * 创建教学任务
      */
     suspend fun createTeachingTask(
-        studentId: String,
-        knowledgePointId: String,
-        taskType: TaskType
+        planId: String,
+        day: Int
     ): Result<TeachingTask> {
         return try {
             val task = TeachingTask(
                 taskId = generateTaskId(),
-                studentId = studentId,
-                knowledgePointId = knowledgePointId,
-                taskType = taskType,
-                content = TeachingContent(
-                    text = "这是知识点 $knowledgePointId 的教学内容",
-                    images = emptyList(),
-                    audio = null,
-                    ppt = null
-                ),
-                questions = listOf(
-                    Question(
-                        questionId = "q_${knowledgePointId}_1",
-                        content = "请回答关于 $knowledgePointId 的问题",
-                        type = QuestionType.EXPLANATION,
-                        correctAnswer = "正确答案",
-                        explanation = "这是解释说明"
+                planId = planId,
+                day = day,
+                date = "2025-11-01",
+                title = "代数基础概念",
+                description = "学习代数的基本概念和表达式",
+                topics = listOf("代数表达式", "变量与常量", "基本运算"),
+                relatedKnowledge = listOf(
+                    KnowledgeItem(
+                        knowledgeId = "M7-001",
+                        topic = "代数表达式",
+                        subject = "数学"
+                    ),
+                    KnowledgeItem(
+                        knowledgeId = "M7-002",
+                        topic = "变量与常量",
+                        subject = "数学"
                     )
                 ),
-                status = TaskStatus.PENDING,
-                currentQuestionIndex = 0,
-                noResponseCount = 0
+                estimatedTime = 60,
+                content = "今天我们将学习代数的基本概念...",
+                resources = listOf(
+                    LearningResource(
+                        type = "video",
+                        url = "https://example.com/video/1",
+                        title = "代数基础讲解视频"
+                    ),
+                    LearningResource(
+                        type = "document",
+                        url = "https://example.com/doc/1",
+                        title = "代数基础讲义"
+                    )
+                ),
+                completed = false,
+                completionDate = null,
+                grade = 0,
+                maxGrade = 100,
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
             )
             
             Result.success(task)
@@ -57,19 +73,28 @@ class TeachingTaskUseCase {
             // 暂时返回模拟数据
             val task = TeachingTask(
                 taskId = taskId,
-                studentId = "student_1",
-                knowledgePointId = "7_1_1_1",
-                taskType = TaskType.TEACHING,
-                content = TeachingContent(
-                    text = "开始教学知识点 7_1_1_1",
-                    images = emptyList(),
-                    audio = null,
-                    ppt = null
+                planId = "plan_1",
+                day = 1,
+                date = "2025-11-01",
+                title = "代数基础概念",
+                description = "学习代数的基本概念和表达式",
+                topics = listOf("代数表达式", "变量与常量", "基本运算"),
+                relatedKnowledge = listOf(
+                    KnowledgeItem(
+                        knowledgeId = "M7-001",
+                        topic = "代数表达式",
+                        subject = "数学"
+                    )
                 ),
-                questions = emptyList(),
-                status = TaskStatus.IN_PROGRESS,
-                currentQuestionIndex = 0,
-                noResponseCount = 0
+                estimatedTime = 60,
+                content = "开始教学知识点 M7-001",
+                resources = emptyList(),
+                completed = false,
+                completionDate = null,
+                grade = 0,
+                maxGrade = 100,
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
             )
             
             Result.success(task)
@@ -106,9 +131,7 @@ class TeachingTaskUseCase {
      * 完成任务
      */
     suspend fun completeTeachingTask(
-        taskId: String,
-        studentId: String,
-        knowledgePointId: String
+        taskId: String
     ): Result<Unit> {
         return try {
             // MVP简化：暂时不更新数据库，直接返回成功

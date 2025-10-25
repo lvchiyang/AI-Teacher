@@ -1,27 +1,22 @@
 package com.aiteacher.domain.model
 
 /**
- * 教学计划模型
- * 教秘Agent制定的教学计划
+ * 教学计划领域模型
  */
 data class TeachingPlan(
-    val planId: String,                       // 计划ID
-    val studentId: String,                    // 学生ID
-    val date: String,                         // 日期
-    val grade: Int,                           // 年级
-    val currentChapter: String,                // 当前章节
-    val reviewKnowledgePoints: List<String>,   // 需要复习的知识点ID列表
-    val newKnowledgePoints: List<String>,     // 新教知识点ID列表
-    val estimatedDuration: Int,               // 预计时长（分钟）
-    val status: PlanStatus                     // 计划状态
+    val planId: String,
+    val studentId: String,
+    val title: String,
+    val description: String,
+    val subject: String,
+    val gradeLevel: String,
+    val totalDays: Int,
+    val startDate: String,
+    val endDate: String,
+    val status: String, // active, completed, paused
+    val totalTasks: Int = 0, // 计划下的任务总个数
+    val completedTasks: Int = 0, // 已完成任务数
+    val createdAt: Long,
+    val updatedAt: Long,
+    val tags: List<String> = emptyList()
 )
-
-/**
- * 计划状态枚举
- */
-enum class PlanStatus {
-    PENDING,        // 待执行
-    IN_PROGRESS,    // 进行中
-    COMPLETED,      // 已完成
-    CANCELLED       // 已取消
-}

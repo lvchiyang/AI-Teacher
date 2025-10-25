@@ -37,6 +37,12 @@ interface WrongAnswerDao {
     @Query("SELECT * FROM wrong_answers ORDER BY created_at DESC")
     fun getAllWrongAnswersFlow(): Flow<List<WrongAnswerEntity>>
     
+    @Query("SELECT * FROM wrong_answers WHERE created_at BETWEEN :startDate AND :endDate ORDER BY created_at DESC")
+    suspend fun getWrongAnswersByDateRange(startDate: Long, endDate: Long): List<WrongAnswerEntity>
+    
+    @Query("SELECT * FROM wrong_answers ORDER BY created_at DESC LIMIT :limit")
+    suspend fun getRecentWrongAnswers(limit: Int): List<WrongAnswerEntity>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWrongAnswer(wrongAnswer: WrongAnswerEntity): Long
     

@@ -12,43 +12,73 @@ class QuestionRepository(private val questionDao: QuestionDao) {
     /**
      * 根据ID获取题目
      */
-    suspend fun getQuestionById(questionId: String): QuestionEntity? {
-        return questionDao.getQuestionById(questionId)
+    suspend fun getQuestionById(questionId: String): Result<QuestionEntity?> {
+        return try {
+            val question = questionDao.getQuestionById(questionId)
+            Result.success(question)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 根据学科和年级获取题目
      */
-    suspend fun getQuestionsBySubjectAndGrade(subject: String, grade: Int): List<QuestionEntity> {
-        return questionDao.getQuestionsBySubjectAndGrade(subject, grade)
+    suspend fun getQuestionsBySubjectAndGrade(subject: String, grade: Int): Result<List<QuestionEntity>> {
+        return try {
+            val questions = questionDao.getQuestionsBySubjectAndGrade(subject, grade)
+            Result.success(questions)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 根据题目类型获取题目
      */
-    suspend fun getQuestionsByType(questionType: String): List<QuestionEntity> {
-        return questionDao.getQuestionsByType(questionType)
+    suspend fun getQuestionsByType(questionType: String): Result<List<QuestionEntity>> {
+        return try {
+            val questions = questionDao.getQuestionsByType(questionType)
+            Result.success(questions)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 根据难度获取题目
      */
-    suspend fun getQuestionsByDifficulty(difficulty: Int): List<QuestionEntity> {
-        return questionDao.getQuestionsByDifficulty(difficulty)
+    suspend fun getQuestionsByDifficulty(difficulty: Int): Result<List<QuestionEntity>> {
+        return try {
+            val questions = questionDao.getQuestionsByDifficulty(difficulty)
+            Result.success(questions)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 根据知识点ID获取相关题目
      */
-    suspend fun getQuestionsByKnowledgeId(knowledgeId: String): List<QuestionEntity> {
-        return questionDao.getQuestionsByKnowledgeId(knowledgeId)
+    suspend fun getQuestionsByKnowledgeId(knowledgeId: String): Result<List<QuestionEntity>> {
+        return try {
+            val questions = questionDao.getQuestionsByKnowledgeId(knowledgeId)
+            Result.success(questions)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
      * 获取所有题目
      */
-    suspend fun getAllQuestions(): List<QuestionEntity> {
-        return questionDao.getAllQuestions()
+    suspend fun getAllQuestions(): Result<List<QuestionEntity>> {
+        return try {
+            val questions = questionDao.getAllQuestions()
+            Result.success(questions)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
@@ -94,6 +124,30 @@ class QuestionRepository(private val questionDao: QuestionDao) {
         return try {
             questionDao.deleteQuestionById(questionId)
             Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 搜索题目
+     */
+    suspend fun searchQuestions(keyword: String): Result<List<QuestionEntity>> {
+        return try {
+            val questions = questionDao.searchQuestions(keyword)
+            Result.success(questions)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 根据学科、年级和类型获取题目
+     */
+    suspend fun getQuestionsBySubjectGradeAndType(subject: String, grade: Int, type: String): Result<List<QuestionEntity>> {
+        return try {
+            val questions = questionDao.getQuestionsBySubjectGradeAndType(subject, grade, type)
+            Result.success(questions)
         } catch (e: Exception) {
             Result.failure(e)
         }

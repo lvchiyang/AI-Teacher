@@ -40,6 +40,12 @@ interface TeachingTaskDao {
     @Query("SELECT * FROM teaching_tasks ORDER BY created_at DESC")
     fun getAllTeachingTasksFlow(): Flow<List<TeachingTaskEntity>>
     
+    @Query("SELECT * FROM teaching_tasks WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC")
+    suspend fun getTeachingTasksByDateRange(startDate: String, endDate: String): List<TeachingTaskEntity>
+    
+    @Query("SELECT * FROM teaching_tasks ORDER BY created_at DESC LIMIT :limit")
+    suspend fun getRecentTeachingTasks(limit: Int): List<TeachingTaskEntity>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTeachingTask(task: TeachingTaskEntity)
     

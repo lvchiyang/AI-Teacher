@@ -31,6 +31,15 @@ interface TeachingPlanDao {
     @Query("SELECT * FROM teaching_plans ORDER BY created_at DESC")
     fun getAllTeachingPlansFlow(): Flow<List<TeachingPlanEntity>>
     
+    @Query("SELECT * FROM teaching_plans WHERE tags LIKE '%' || :tag || '%' ORDER BY created_at DESC")
+    suspend fun getTeachingPlansByTag(tag: String): List<TeachingPlanEntity>
+    
+    @Query("SELECT * FROM teaching_plans ORDER BY created_at DESC LIMIT :limit")
+    suspend fun getRecentTeachingPlans(limit: Int): List<TeachingPlanEntity>
+    
+    @Query("SELECT * FROM teaching_plans WHERE created_at BETWEEN :startDate AND :endDate ORDER BY created_at DESC")
+    suspend fun getTeachingPlansByDateRange(startDate: Long, endDate: Long): List<TeachingPlanEntity>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTeachingPlan(plan: TeachingPlanEntity)
     

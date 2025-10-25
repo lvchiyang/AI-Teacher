@@ -12,7 +12,6 @@ data class StudentEntity(
     val studentId: String,
     val studentName: String,
     val grade: Int,
-    val currentChapter: String,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

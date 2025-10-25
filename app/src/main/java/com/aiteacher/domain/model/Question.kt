@@ -1,18 +1,10 @@
-package com.aiteacher.data.local.entity
-
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-import androidx.room.TypeConverters
-import com.aiteacher.data.local.database.Converters
+package com.aiteacher.domain.model
 
 /**
- * 题目实体类
+ * 题目领域模型
  * 对应题库表(QuestionBase)
  */
-@Entity(tableName = "question_base")
-@TypeConverters(Converters::class)
-data class QuestionEntity(
-    @PrimaryKey
+data class Question(
     val questionId: String,             // 题目ID，如 "Q1001"
     val subject: String,               // 学科，如 "数学"
     val grade: Int,                    // 年级，如 7
