@@ -3,6 +3,7 @@ package com.aiteacher.data.local.database
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import android.content.Context
 import com.aiteacher.data.local.dao.StudentDao
 import com.aiteacher.data.local.entity.StudentEntity
@@ -15,6 +16,7 @@ import com.aiteacher.data.local.entity.StudentEntity
     version = 1,
     exportSchema = false
 )
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     
     abstract fun studentDao(): StudentDao

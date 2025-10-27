@@ -46,6 +46,13 @@ class LLMModel(
     }
     
     /**
+     * 生成文本（简化版本，直接传入用户消息）
+     */
+    suspend fun generateText(prompt: String): LLMOutput? {
+        return generateText(listOf(mapOf("role" to "user", "content" to prompt)))
+    }
+    
+    /**
      * 生成文本
      * 支持MCP工具调用功能
      */
@@ -102,17 +109,17 @@ class LLMModel(
                     )
                 )
             } catch (e: ApiException) {
-                println("DashScope API Error: ${e.message}")
-                null
+                android.util.Log.e("LLMModel", "DashScope API Error: ${e.message}", e)
+                throw Exception("API调用失败: ${e.message}")
             } catch (e: NoApiKeyException) {
-                println("No API Key Error: ${e.message}")
-                null
+                android.util.Log.e("LLMModel", "No API Key Error: ${e.message}", e)
+                throw Exception("API Key未配置: ${e.message}")
             } catch (e: InputRequiredException) {
-                println("Input Required Error: ${e.message}")
-                null
+                android.util.Log.e("LLMModel", "Input Required Error: ${e.message}", e)
+                throw Exception("输入参数错误: ${e.message}")
             } catch (e: Exception) {
-                println("Error generating text: ${e.message}")
-                null
+                android.util.Log.e("LLMModel", "Error generating text: ${e.message}", e)
+                throw Exception("生成文本失败: ${e.message}")
             }
         }
     }

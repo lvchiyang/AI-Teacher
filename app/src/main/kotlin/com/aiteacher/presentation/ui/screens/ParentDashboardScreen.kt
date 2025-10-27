@@ -11,7 +11,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aiteacher.data.local.repository.StudentRepository
-import com.aiteacher.presentation.viewmodel.LearningViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -21,14 +20,6 @@ fun ParentDashboardScreen(
     onNavigateBack: () -> Unit = {},
     studentRepository: StudentRepository
 ) {
-    val viewModel = remember { LearningViewModel(studentRepository) }
-    val uiState by viewModel.uiState.collectAsState()
-    
-    // 加载学生进度概览
-    LaunchedEffect(studentId) {
-        // 这里可以调用获取学生进度概览的方法
-    }
-    
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -142,97 +133,23 @@ fun ParentDashboardScreen(
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
                     
-                    when (uiState.currentPhase) {
-                        com.aiteacher.presentation.viewmodel.LearningPhase.INITIAL -> {
-                            Text(
-                                text = "状态：未开始学习",
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                        }
-                        com.aiteacher.presentation.viewmodel.LearningPhase.PLAN_LOADED -> {
-                            Text(
-                                text = "状态：教学计划已制定",
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            uiState.currentPlan?.let { plan ->
-                                Text(
-                                    text = "当前章节：${plan.currentChapter}",
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                                Text(
-                                    text = "预计时长：${plan.estimatedDuration}分钟",
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                )
-                            }
-                        }
-                        com.aiteacher.presentation.viewmodel.LearningPhase.TEACHING -> {
-                            Text(
-                                text = "状态：正在教学",
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            uiState.currentTask?.let { task ->
-                                Text(
-                                    text = "当前知识点：${task.knowledgePointId}",
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                                Text(
-                                    text = "任务类型：${if (task.taskType == "TEACHING") "教学" else "复习"}",
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                )
-                            }
-                        }
-                        com.aiteacher.presentation.viewmodel.LearningPhase.TESTING -> {
-                            Text(
-                                text = "状态：正在检验",
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            uiState.currentTestingTask?.let { task ->
-                                Text(
-                                    text = "题目进度：${task.currentQuestionIndex + 1}/${task.questions.size}",
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                )
-                            }
-                        }
-                        com.aiteacher.presentation.viewmodel.LearningPhase.PLANNING -> {
-                            Text(
-                                text = "状态：制定教学计划中",
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                        }
-                        
-                        com.aiteacher.presentation.viewmodel.LearningPhase.LEARNING -> {
-                            Text(
-                                text = "状态：学习中",
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                        }
-                        
-                        com.aiteacher.presentation.viewmodel.LearningPhase.COMPLETED -> {
-                            Text(
-                                text = "状态：学习完成",
-                                fontSize = 14.sp,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                            uiState.achievement?.let { achievement ->
-                                Text(
-                                    text = "成就：${achievement.title}",
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                )
-                            }
-                        }
-                    }
+                    Text(
+                        text = "状态：学习中",
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    Text(
+                        text = "当前章节：第一章 有理数",
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    
+                    Text(
+                        text = "学习进度：已完成基础部分",
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
                 }
             }
         }
@@ -338,3 +255,4 @@ fun ParentDashboardScreen(
         }
     }
 }
+

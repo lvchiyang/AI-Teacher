@@ -17,7 +17,8 @@ import androidx.compose.ui.unit.sp
 fun HomeScreen(
     onNavigateToMath: () -> Unit,
     onNavigateToProfile: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToLlmTest: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -92,6 +93,18 @@ fun HomeScreen(
                     title = "化学学习",
                     description = "初中化学基础与实验",
                     onClick = { /* TODO: 实现化学学习 */ }
+                )
+            }
+            
+            item {
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+            }
+            
+            item {
+                SubjectCard(
+                    title = "LLM API 测试",
+                    description = "测试大语言模型 API 调用",
+                    onClick = onNavigateToLlmTest
                 )
             }
         }

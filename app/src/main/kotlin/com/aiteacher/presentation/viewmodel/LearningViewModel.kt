@@ -2,177 +2,99 @@ package com.aiteacher.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aiteacher.domain.model.TaskType
+import com.aiteacher.domain.model.TaskStatus
+import com.aiteacher.domain.model.TeachingTask
+import com.aiteacher.domain.model.TeachingContent
+import com.aiteacher.domain.model.TestingTask
+import com.aiteacher.domain.model.TestQuestion
+import com.aiteacher.domain.model.QuestionType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 
 /**
- * 学习界面的ViewModel
+ * 学习界面ViewModel
+ * 管理教学和检验阶段的状态
  */
-class LearningViewModel(
-    private val studentRepository: com.aiteacher.data.local.repository.StudentRepository
-) : ViewModel() {
+class LearningViewModel : ViewModel() {
     
-    // UI状态
-    private val _uiState = MutableStateFlow(LearningUiState())
-    val uiState: StateFlow<LearningUiState> = _uiState.asStateFlow()
+    // 反馈信息
+    private val _feedback = MutableStateFlow<String?>(null)
+    val feedback: StateFlow<String?> = _feedback.asStateFlow()
     
-    /**
-     * 加载今日教学计划
-     */
-    fun loadTodayTeachingPlan(studentId: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            try {
-                // TODO: 实现加载教学计划的逻辑
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    currentPhase = LearningPhase.PLANNING
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = e.message
-                )
-            }
-        }
-    }
+    // 当前教学任务（示例数据）
+    val currentTeachingTask: TeachingTask = TeachingTask(
+        taskId = "task_1",
+        studentId = "student_1",
+        knowledgePointId = "kp_1",
+        taskType = TaskType.TEACHING,
+        content = TeachingContent(
+            text = "这是一个示例教学任务，讲解1+1的加法运算。",
+            images = emptyList(),
+            audio = null,
+            ppt = null
+        ),
+        questions = emptyList(),
+        status = TaskStatus.IN_PROGRESS,
+        currentQuestionIndex = 0,
+        noResponseCount = 0
+    )
     
-    /**
-     * 开始学习
-     */
-    fun startLearning(teachingPlan: com.aiteacher.domain.model.TeachingPlan) {
-        viewModelScope.launch {
-            // 转换Domain模型到ViewModel模型
-            val viewModelPlan = TeachingPlan(
-                id = teachingPlan.planId,
-                title = "教学计划",
-                currentChapter = teachingPlan.currentChapter,
-                estimatedDuration = teachingPlan.estimatedDuration
+    // 当前检验任务（示例数据）
+    val currentTestingTask: TestingTask = TestingTask(
+        taskId = "test_1",
+        studentId = "student_1",
+        knowledgePointIds = listOf("kp_1"),
+        questions = listOf(
+            TestQuestion(
+                questionId = "q_1",
+                knowledgePointId = "kp_1",
+                content = "测试题目：1 + 1 = ?",
+                image = null,
+                type = QuestionType.CALCULATION,
+                correctAnswer = "2",
+                explanation = "1加1等于2",
+                points = 10,
+                timeLimit = 5
             )
-            _uiState.value = _uiState.value.copy(
-                currentPhase = LearningPhase.LEARNING,
-                currentPlan = viewModelPlan
-            )
+        ),
+        status = TaskStatus.IN_PROGRESS,
+        currentQuestionIndex = 0,
+        startTime = "2024-01-01T00:00:00",
+        timeLimit = 30
+    )
+    
+    /**
+     * 提交教学答案
+     */
+    fun submitTeachingAnswer(answer: String) {
+        // 简单判断答案是否正确
+        val isCorrect = answer == "2"
+        _feedback.value = if (isCorrect) {
+            "回答正确！可以进入检验阶段了。"
+        } else {
+            "回答错误，正确答案是2"
         }
     }
     
     /**
-     * 处理学生答案
+     * 提交检验答案
      */
-    fun handleStudentAnswer(answer: String) {
-        viewModelScope.launch {
-            // TODO: 实现处理学生答案的逻辑
+    fun submitTestingAnswer(answer: String) {
+        // 简单判断答案是否正确
+        val isCorrect = answer == "2"
+        _feedback.value = if (isCorrect) {
+            "回答正确！"
+        } else {
+            "回答错误，正确答案是2"
         }
     }
     
     /**
-     * 继续到下一个任务
+     * 清空反馈
      */
-    fun continueToNextTask() {
-        viewModelScope.launch {
-            // TODO: 实现继续到下一个任务的逻辑
-        }
-    }
-    
-    /**
-     * 提交测试答案
-     */
-    fun submitTestingAnswer(answer: String, questionId: String) {
-        viewModelScope.launch {
-            // TODO: 实现提交测试答案的逻辑
-        }
-    }
-    
-    /**
-     * 清除错误
-     */
-    fun clearError() {
-        _uiState.value = _uiState.value.copy(error = null)
+    fun clearFeedback() {
+        _feedback.value = null
     }
 }
-
-/**
- * 学习UI状态
- */
-data class LearningUiState(
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val currentPhase: LearningPhase = LearningPhase.PLANNING,
-    val currentPlan: TeachingPlan? = null,
-    val currentTask: LearningTask? = null,
-    val currentTestingTask: TestingTask? = null,
-    val currentTestingResult: TestingResult? = null,
-    val feedback: String? = null,
-    val achievement: Achievement? = null
-)
-
-/**
- * 学习阶段
- */
-enum class LearningPhase {
-    INITIAL,     // 初始阶段
-    PLANNING,    // 计划阶段
-    PLAN_LOADED, // 计划已加载
-    LEARNING,    // 学习阶段
-    TEACHING,    // 教学阶段
-    TESTING,     // 测试阶段
-    COMPLETED    // 完成阶段
-}
-
-/**
- * 教学计划
- */
-data class TeachingPlan(
-    val id: String,
-    val title: String,
-    val currentChapter: String,
-    val estimatedDuration: Int
-)
-
-/**
- * 学习任务
- */
-data class LearningTask(
-    val id: String,
-    val knowledgePointId: String,
-    val taskType: String,
-    val content: String
-)
-
-/**
- * 测试任务
- */
-data class TestingTask(
-    val id: String,
-    val questions: List<Question>,
-    val currentQuestionIndex: Int
-)
-
-/**
- * 问题
- */
-data class Question(
-    val id: String,
-    val content: String,
-    val options: List<String>
-)
-
-/**
- * 测试结果
- */
-data class TestingResult(
-    val score: Int,
-    val totalQuestions: Int,
-    val correctAnswers: Int
-)
-
-/**
- * 成就
- */
-data class Achievement(
-    val id: String,
-    val title: String,
-    val description: String
-)

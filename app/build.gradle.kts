@@ -1,8 +1,9 @@
 plugins {
     id("com.android.application") version "8.13.0"
-    id("org.jetbrains.kotlin.android") version "2.2.10"
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.10"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10"
+    id("org.jetbrains.kotlin.android") version "2.1.21"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.1.21"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.1.21"
+    id("com.google.devtools.ksp") version "2.1.21-2.0.1"
 }
 
 android {
@@ -17,8 +18,19 @@ android {
         versionName = "1.0"
     }
     
+    // 签名配置
+    signingConfigs {
+        create("release") {
+            storeFile = file("../aiteacher-release.keystore")
+            storePassword = "aiteacher123456"
+            keyAlias = "aiteacher"
+            keyPassword = "aiteacher123456"
+        }
+    }
+    
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -61,9 +73,10 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview:1.5.8")
     implementation("androidx.compose.foundation:foundation:1.5.8")
 
-    // Android特定数据库依赖
-    implementation("androidx.room:room-runtime:2.6.0")
-    implementation("androidx.room:room-ktx:2.6.0")
+    // Room 数据库
+    implementation("androidx.room:room-runtime:2.8.0")
+    implementation("androidx.room:room-ktx:2.8.0")
+    ksp("androidx.room:room-compiler:2.8.0")
 
     // 阿里云DashScope SDK
     implementation("com.alibaba:dashscope-sdk-java:2.20.0")
@@ -73,11 +86,6 @@ dependencies {
     
     // 日志
     implementation("org.slf4j:slf4j-simple:2.0.17")
-
-    // Room 数据库
-    implementation("androidx.room:room-runtime:2.6.0")
-    implementation("androidx.room:room-ktx:2.6.0")
-    annotationProcessor("androidx.room:room-compiler:2.6.0")
     
     // Koin 依赖注入
     implementation("io.insert-koin:koin-android:3.5.6")

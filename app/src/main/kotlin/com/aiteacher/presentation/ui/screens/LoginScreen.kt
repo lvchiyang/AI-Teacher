@@ -11,17 +11,18 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aiteacher.data.local.repository.StudentRepository
 import com.aiteacher.domain.model.Student
 import com.aiteacher.domain.usecase.StudentUseCase
 import kotlinx.coroutines.launch
+import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     onLoginSuccess: (String, String, Int) -> Unit,
-    studentRepository: StudentRepository
+    studentRepository: com.aiteacher.data.local.repository.StudentRepository
 ) {
+    val studentUseCase = remember { StudentUseCase(studentRepository) }
     var studentName by remember { mutableStateOf("") }
     var grade by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
@@ -29,7 +30,6 @@ fun LoginScreen(
     var existingStudent by remember { mutableStateOf<Student?>(null) }
     var isFirstTime by remember { mutableStateOf(true) }
     
-    val studentUseCase = remember { StudentUseCase(studentRepository) }
     val scope = rememberCoroutineScope()
     
     // 检查是否有已存在的学生
@@ -162,6 +162,7 @@ fun LoginScreen(
                                 val result = studentUseCase.createStudent(studentId, studentName, gradeInt)
                                 result.fold(
                                     onSuccess = { student ->
+                                        android.util.Log.d("LoginScreen", "登录成功，调用onLoginSuccess: studentId=$studentId, name=$studentName, grade=$gradeInt")
                                         onLoginSuccess(studentId, studentName, gradeInt)
                                     },
                                     onFailure = { exception ->

@@ -6,70 +6,45 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.take
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aiteacher.ai.agent.BaseAgent
 import com.aiteacher.ai.agent.TeachingPlanResult
-import com.aiteacher.ai.agent.SecretaryAgent
-import com.aiteacher.data.local.repository.StudentRepository
-import com.aiteacher.domain.model.LearningProgress
-import kotlinx.coroutines.launch
+import com.aiteacher.presentation.viewmodel.TeachingOutlineViewModel
+import com.aiteacher.presentation.viewmodel.TeachingOutlineUiState
+import org.koin.androidx.compose.koinViewModel
+import com.aiteacher.presentation.viewmodel.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TeachingOutlineScreen(
-    studentId: String,
-    studentName: String,
-    grade: Int,
     onNavigateToLearning: (String, String, Int) -> Unit,
-    onBackToHome: () -> Unit,
-    studentRepository: StudentRepository
+    onBackToHome: () -> Unit
 ) {
-    var isLoading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var teachingPlan by remember { mutableStateOf<TeachingPlanResult?>(null) }
-    val scope = rememberCoroutineScope()
+    // 获取TeachingOutlineViewModel（通过Koin注入）
+    val viewModel: TeachingOutlineViewModel = koinViewModel()
     
-    // 初始化教秘Agent
-    val secretaryAgent = remember { 
-        SecretaryAgent()
+    // 获取当前学生信息（用于显示和导航）
+    val mainViewModel: MainViewModel = org.koin.compose.getKoin().get<MainViewModel>()
+    var currentStudent by remember { mutableStateOf<com.aiteacher.domain.model.Student?>(null) }
+    
+    LaunchedEffect(Unit) {
+        mainViewModel.currentStudent.take(1).collect { student ->
+            currentStudent = student
+        }
     }
     
-    // 加载教学大纲
-    LaunchedEffect(studentId) {
-        try {
-            // 获取学生学习进度
-            val student = studentRepository.getStudentById(studentId)
-            val learningProgress = student?.learningProgress ?: LearningProgress(
-                notTaught = emptyList(),
-                taughtToReview = emptyList(),
-                notMastered = emptyList(),
-                basicMastery = emptyList(),
-                fullMastery = emptyList(),
-                lastUpdateTime = ""
-            )
-            
-            // 调用教秘Agent生成教学计划
-            val result = secretaryAgent.createTeachingPlan(
-                studentId = studentId,
-                grade = grade,
-                currentChapter = student?.currentChapter ?: "第一章 有理数",
-                learningProgress = learningProgress
-            )
-            
-            if (result.isSuccess) {
-                teachingPlan = result.getOrNull()
-                isLoading = false
-            } else {
-                error = result.exceptionOrNull()?.message ?: "生成教学大纲失败"
-                isLoading = false
-            }
-        } catch (e: Exception) {
-            error = e.message ?: "加载教学大纲失败"
-            isLoading = false
+    // ① 本地状态：可预览、可测试
+    var uiState by remember { mutableStateOf<TeachingOutlineUiState>(TeachingOutlineUiState()) }
+    
+    // ② 生命周期安全收集
+    LaunchedEffect(Unit) {
+        viewModel.uiState.collectLatest { 
+            uiState = it 
         }
     }
     
@@ -86,34 +61,28 @@ fun TeachingOutlineScreen(
             modifier = Modifier.padding(bottom = 24.dp)
         )
         
+        // ④ 纯UI：只读本地uiState
         when {
-            isLoading -> {
+            uiState.isLoading -> {
                 LoadingOutlineScreen()
             }
-            error != null -> {
+            uiState.error != null -> {
                 ErrorOutlineScreen(
-                    error = error!!,
-                    onRetry = {
-                        isLoading = true
-                        error = null
-                        teachingPlan = null
-                        // 重新触发LaunchedEffect
-                        scope.launch {
-                            // 这里可以添加重新生成的逻辑
-                        }
-                    }
+                    error = uiState.error!!
                 )
             }
-            teachingPlan != null -> {
-                TeachingPlanContent(
-                    plan = teachingPlan!!,
-                    studentName = studentName,
-                    grade = grade,
-                    onStartLearning = {
-                        onNavigateToLearning(studentId, studentName, grade)
-                    },
-                    onBackToHome = onBackToHome
-                )
+            uiState.outline != null -> {
+                currentStudent?.let { student ->
+                    TeachingPlanContent(
+                        plan = uiState.outline!!,
+                        studentName = student.studentName,
+                        grade = student.grade,
+                        onStartLearning = {
+                            onNavigateToLearning(student.studentId, student.studentName, student.grade)
+                        },
+                        onBackToHome = onBackToHome
+                    )
+                }
             }
         }
     }
@@ -147,8 +116,7 @@ fun LoadingOutlineScreen() {
 
 @Composable
 fun ErrorOutlineScreen(
-    error: String,
-    onRetry: () -> Unit
+    error: String
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -175,13 +143,6 @@ fun ErrorOutlineScreen(
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier.padding(bottom = 24.dp)
         )
-        
-        Button(
-            onClick = onRetry,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("重新生成")
-        }
     }
 }
 

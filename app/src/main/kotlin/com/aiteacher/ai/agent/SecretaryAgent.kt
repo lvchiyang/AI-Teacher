@@ -138,14 +138,21 @@ class SecretaryAgent(
         """.trimIndent()
         
         return try {
+            android.util.Log.d("SecretaryAgent", "开始调用LLM生成教学计划")
             val result = runOnce(prompt)
             if (result.isSuccess) {
-                val plan = parseTeachingPlan(result.getOrThrow())
+                val response = result.getOrThrow()
+                android.util.Log.d("SecretaryAgent", "LLM响应: $response")
+                val plan = parseTeachingPlan(response)
+                android.util.Log.d("SecretaryAgent", "教学计划解析成功")
                 Result.success(plan)
             } else {
+                val error = result.exceptionOrNull()?.message ?: "Unknown error"
+                android.util.Log.e("SecretaryAgent", "LLM调用失败: $error")
                 Result.failure(result.exceptionOrNull() ?: Exception("Failed to create teaching plan"))
             }
         } catch (e: Exception) {
+            android.util.Log.e("SecretaryAgent", "生成教学计划异常: ${e.message}", e)
             Result.failure(e)
         }
     }
