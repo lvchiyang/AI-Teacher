@@ -3,7 +3,6 @@ package com.aiteacher.data.local.repository
 import com.aiteacher.data.local.dao.StudentDao
 import com.aiteacher.data.local.entity.StudentEntity
 import com.aiteacher.domain.model.Student
-import com.aiteacher.domain.model.LearningProgress
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -123,14 +122,8 @@ private fun StudentEntity.toDomainModel(): Student {
         studentId = this.studentId,
         studentName = this.studentName,
         grade = this.grade,
-        learningProgress = LearningProgress(
-            notTaught = emptyList(),
-            taughtToReview = emptyList(),
-            notMastered = emptyList(),
-            basicMastery = emptyList(),
-            fullMastery = emptyList(),
-            lastUpdateTime = this.updatedAt.toString()
-        )
+        createdAt = this.createdAt,
+        updatedAt = this.updatedAt
     )
 }
 
@@ -142,7 +135,7 @@ private fun Student.toEntity(): StudentEntity {
         studentId = this.studentId,
         studentName = this.studentName,
         grade = this.grade,
-        createdAt = System.currentTimeMillis(),
-        updatedAt = System.currentTimeMillis()
+        createdAt = this.createdAt,
+        updatedAt = this.updatedAt
     )
 }

@@ -2,6 +2,7 @@ package com.aiteacher.data.local.repository
 
 import com.aiteacher.data.local.dao.SessionDao
 import com.aiteacher.data.local.entity.SessionEntity
+import com.aiteacher.domain.model.Session
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -157,4 +158,32 @@ class SessionRepository(private val sessionDao: SessionDao) {
             Result.failure(e)
         }
     }
+}
+
+/**
+ * 扩展函数：SessionEntity 转 Session
+ */
+private fun SessionEntity.toDomainModel(): Session {
+    return Session(
+        sessionId = this.sessionId,
+        userId = this.userId,
+        title = this.title,
+        createdAt = this.createdAt,
+        updatedAt = this.updatedAt,
+        tags = this.tags
+    )
+}
+
+/**
+ * 扩展函数：Session 转 SessionEntity
+ */
+private fun Session.toEntity(): SessionEntity {
+    return SessionEntity(
+        sessionId = this.sessionId,
+        userId = this.userId,
+        title = this.title,
+        createdAt = this.createdAt,
+        updatedAt = this.updatedAt,
+        tags = this.tags
+    )
 }

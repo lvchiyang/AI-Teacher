@@ -25,7 +25,7 @@ interface QuestionDao {
     @Query("SELECT * FROM question_base WHERE difficulty = :difficulty")
     suspend fun getQuestionsByDifficulty(difficulty: Int): List<QuestionEntity>
     
-    @Query("SELECT * FROM question_base WHERE relatedKnowledgeIds LIKE '%' || :knowledgeId || '%'")
+    @Query("SELECT * FROM questions WHERE knowledge_id = :knowledgeId")
     suspend fun getQuestionsByKnowledgeId(knowledgeId: String): List<QuestionEntity>
     
     @Query("SELECT * FROM question_base")

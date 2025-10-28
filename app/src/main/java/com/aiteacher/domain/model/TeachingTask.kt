@@ -20,5 +20,6 @@ data class TeachingTask(
     val grade: Int,
     val maxGrade: Int,
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    val noResponseCount: Int = 0
 )

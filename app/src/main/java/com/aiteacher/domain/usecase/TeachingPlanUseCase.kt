@@ -1,5 +1,6 @@
 package com.aiteacher.domain.usecase
 
+import com.aiteacher.data.local.repository.TeachingPlanRepository
 import com.aiteacher.domain.model.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -8,7 +9,7 @@ import java.util.*
  * 教学计划用例
  * 教秘Agent的业务逻辑
  */
-class TeachingPlanUseCase {
+class TeachingPlanUseCase(private val teachingPlanRepository: TeachingPlanRepository) {
     
     /**
      * 制定教学计划
@@ -45,6 +46,27 @@ class TeachingPlanUseCase {
         return try {
             // 这里应该从数据库查询，暂时返回新创建的计划
             createTeachingPlan(studentId)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 获取所有教学计划，按创建时间升序排序
+     */
+    suspend fun getTodayTeachingPlan(studentId: String): Result<List<TeachingPlan>> {
+        return try {
+            // 获取学生的所有教学计划
+            val plansResult = teachingPlanRepository.getTeachingPlansByStudentId(studentId)
+            if (plansResult.isSuccess) {
+                val plans = plansResult.getOrNull()
+                // 按创建时间升序排序
+                val sortedPlans = plans?.sortedBy { it.createdAt } ?: emptyList()
+                Result.success(sortedPlans)
+            } else {
+                // 如果查询失败，返回空列表
+                Result.success(emptyList())
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }

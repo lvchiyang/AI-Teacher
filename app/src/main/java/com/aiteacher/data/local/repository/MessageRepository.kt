@@ -2,6 +2,7 @@ package com.aiteacher.data.local.repository
 
 import com.aiteacher.data.local.dao.MessageDao
 import com.aiteacher.data.local.entity.MessageEntity
+import com.aiteacher.domain.model.Message
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -181,4 +182,34 @@ class MessageRepository(private val messageDao: MessageDao) {
             Result.failure(e)
         }
     }
+}
+
+/**
+ * 扩展函数：MessageEntity 转 Message
+ */
+private fun MessageEntity.toDomainModel(): Message {
+    return Message(
+        messageId = this.messageId,
+        sessionId = this.sessionId,
+        role = this.role,
+        content = this.content,
+        tokens = this.tokens,
+        createdAt = this.createdAt,
+        metadata = this.metadata
+    )
+}
+
+/**
+ * 扩展函数：Message 转 MessageEntity
+ */
+private fun Message.toEntity(): MessageEntity {
+    return MessageEntity(
+        messageId = this.messageId,
+        sessionId = this.sessionId,
+        role = this.role,
+        content = this.content,
+        tokens = this.tokens,
+        createdAt = this.createdAt,
+        metadata = this.metadata
+    )
 }

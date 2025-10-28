@@ -1,12 +1,15 @@
 package com.aiteacher.domain.usecase
 
 import com.aiteacher.domain.model.*
+import com.aiteacher.data.local.repository.TeachingTaskRepository
 
 /**
  * 教学任务用例
  * 教学Agent的业务逻辑
  */
-class TeachingTaskUseCase {
+class TeachingTaskUseCase(
+    private val teachingTaskRepository: TeachingTaskRepository
+) {
     
     /**
      * 创建教学任务
@@ -130,12 +133,34 @@ class TeachingTaskUseCase {
     /**
      * 完成任务
      */
-    suspend fun completeTeachingTask(
-        taskId: String
-    ): Result<Unit> {
+    suspend fun completeTeachingTask(taskId: String): Result<Unit> {
         return try {
-            // MVP简化：暂时不更新数据库，直接返回成功
+            // 检查数据库是否存在taskId指向的任务
+            val taskResult = startTeachingTask(taskId)
+            if (taskResult.isFailure) {
+                return Result.failure(Exception("无法获取任务信息"))
+            }
+            
+            val task = taskResult.getOrNull()
+            if (task == null) {
+                return Result.failure(Exception("任务不存在"))
+            }
+            val completedTask = task.copy(completed = true, completionDate = System.currentTimeMillis().toString())
+            teachingTaskRepository.updateTeachingTask(completedTask)
             Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 根据计划ID获取未完成的教学任务
+     */
+    suspend fun getIncompleteTeachingTasksByPlanId(planId: String): Result<List<TeachingTask>> {
+        return try {
+            // 这里应该从数据库获取未完成的任务
+            // 暂时返回空列表
+            Result.success(emptyList())
         } catch (e: Exception) {
             Result.failure(e)
         }

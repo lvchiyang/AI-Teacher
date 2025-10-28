@@ -2,12 +2,9 @@ package com.aiteacher.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aiteacher.data.local.repository.StudentRepository
+import com.aiteacher.data.local.repository.*
 import com.aiteacher.domain.model.*
-import com.aiteacher.domain.usecase.StudentUseCase
-import com.aiteacher.domain.usecase.TeachingPlanUseCase
-import com.aiteacher.domain.usecase.TeachingTaskUseCase
-import com.aiteacher.domain.usecase.TestingTaskUseCase
+import com.aiteacher.domain.usecase.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,31 +14,53 @@ import kotlinx.coroutines.launch
  * 学习ViewModel
  * 处理UI层与业务逻辑层的交互
  */
-class LearningViewModel(private val studentRepository: StudentRepository) : ViewModel() {
+class LearningViewModel(
+    private val studentRepository: StudentRepository,
+    private val teachingPlanRepository: TeachingPlanRepository,
+    private val teachingTaskRepository: TeachingTaskRepository,
+    private val questionRepository: QuestionRepository,
+    private val testingTaskRepository: TestingTaskRepository
+) : ViewModel() {
     
     private val _uiState = MutableStateFlow(LearningUiState())
     val uiState: StateFlow<LearningUiState> = _uiState.asStateFlow()
     
     // MVP简化：直接创建UseCase实例
-    private val studentUseCase = StudentUseCase(studentRepository)
-    private val teachingPlanUseCase = TeachingPlanUseCase()
-    private val teachingTaskUseCase = TeachingTaskUseCase()
-    private val testingTaskUseCase = TestingTaskUseCase()
+    private val studentUseCase = StudentUseCase(studentRepository, teachingTaskRepository)
+    private val teachingPlanUseCase = TeachingPlanUseCase(teachingPlanRepository)
+    private val teachingTaskUseCase = TeachingTaskUseCase(teachingTaskRepository)
+    private val testingTaskUseCase = TestingTaskUseCase(testingTaskRepository, questionRepository)
     
     /**
-     * 1. 用户打开应用，获取今日教学计划
+     * 1. 用户打开应用，获取所有教学计划
      */
     fun loadTodayTeachingPlan(studentId: String) {
+        if (studentId.isBlank()) {
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                error = "学生ID不能为空"
+            )
+            return
+        }
+        
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             
             try {
-                val plan = teachingPlanUseCase.getTodayTeachingPlan(studentId).getOrThrow()
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    currentPlan = plan,
-                    currentPhase = LearningPhase.PLAN_LOADED
-                )
+                val planResult = teachingPlanUseCase.getTodayTeachingPlan(studentId)
+                if (planResult.isSuccess) {
+                    val plan = planResult.getOrNull() ?: emptyList()
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        currentPlans = plan,
+                        currentPhase = LearningPhase.PLAN_LOADED
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = planResult.exceptionOrNull()?.message ?: "加载教学计划失败"
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
@@ -55,31 +74,64 @@ class LearningViewModel(private val studentRepository: StudentRepository) : View
      * 2. 用户点击开始学习，推送任务给教学Agent
      * 教学阶段：讲解知识点 → 学生答题验证理解
      */
-    fun startLearning(studentId: String) {
+    fun startLearning(studentId: String, planId: String) {
+        if (studentId.isBlank()) {
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                error = "学生ID不能为空"
+            )
+            return
+        }
+        
+        if (planId.isBlank()) {
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                error = "计划ID不能为空"
+            )
+            return
+        }
+        
+        // 检查currentTasks是否为空
+        val currentTasks = _uiState.value.currentTasks
+        if (currentTasks.isNullOrEmpty()) {
+            // 如果为空，则获取所有教学计划
+            loadTodayTeachingPlan(studentId)
+            return
+        }
+        
+        // 若不为空，则启动列表中的第一个任务
+        val firstTask = currentTasks.firstOrNull()
+        if (firstTask == null) {
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                error = "当前任务列表为空"
+            )
+            return
+        }
+        
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
             
             try {
-                val plan = _uiState.value.currentPlan ?: return@launch
-                
-                // 开始第一个教学任务
-                val firstKnowledgePoint = plan.newKnowledgePoints.firstOrNull() 
-                    ?: plan.reviewKnowledgePoints.firstOrNull()
-                
-                if (firstKnowledgePoint != null) {
-                    val task = teachingTaskUseCase.createTeachingTask(
-                        studentId = studentId,
-                        knowledgePointId = firstKnowledgePoint,
-                        taskType = if (plan.newKnowledgePoints.contains(firstKnowledgePoint)) 
-                            TaskType.TEACHING else TaskType.REVIEW
-                    ).getOrThrow()
-                    
-                    val startedTask = teachingTaskUseCase.startTeachingTask(task.taskId).getOrThrow()
-                    
+                val taskResult = teachingTaskUseCase.startTeachingTask(firstTask.taskId)
+                if (taskResult.isSuccess) {
+                    val startedTask = taskResult.getOrNull()
+                    if (startedTask != null) {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            currentTasks = listOf(startedTask),
+                            currentPhase = LearningPhase.TEACHING
+                        )
+                    } else {
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            error = "启动教学任务失败"
+                        )
+                    }
+                } else {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        currentTask = startedTask,
-                        currentPhase = LearningPhase.TEACHING
+                        error = taskResult.exceptionOrNull()?.message ?: "启动教学任务失败"
                     )
                 }
             } catch (e: Exception) {
@@ -95,19 +147,58 @@ class LearningViewModel(private val studentRepository: StudentRepository) : View
      * 继续下一个教学任务
      */
     fun continueToNextTask() {
-        val currentTask = _uiState.value.currentTask ?: return
-        val plan = _uiState.value.currentPlan ?: return
+        val currentTasks = _uiState.value.currentTasks
         
-        // MVP简化：教学阶段只有一道题，完成后直接进入测试阶段
-        val allPoints = plan.newKnowledgePoints + plan.reviewKnowledgePoints
+        // 若currentTasks为空，则调用加载教学计划功能
+        if (currentTasks.isNullOrEmpty()) {
+            // 这里需要学生ID来加载教学计划，但此函数没有参数
+            // 可以考虑从现有的UI状态中获取学生ID，如果存在的话
+            _uiState.value = _uiState.value.copy(error = "无法加载教学计划：缺少学生ID")
+            return
+        }
         
-        // 清空反馈
-        _uiState.value = _uiState.value.copy(
-            feedback = null
-        )
+        // 若不为空，则将第一个任务更新为已完成，移出currentTasks列表
+        val firstTask = currentTasks.firstOrNull()
+        if (firstTask == null) {
+            _uiState.value = _uiState.value.copy(error = "当前任务列表为空")
+            return
+        }
         
-        // 直接进入测试阶段
-        startTesting(currentTask.studentId, allPoints)
+        // 更新第一个任务为已完成状态
+        viewModelScope.launch {
+            try {
+                val result = teachingTaskUseCase.completeTeachingTask(firstTask.taskId)
+                if (result.isSuccess) {
+                    // 从currentTasks列表中移除已完成的任务
+                    val remainingTasks = currentTasks.drop(1)
+                    
+                    // 更新UI状态
+                    _uiState.value = _uiState.value.copy(
+                        currentTasks = remainingTasks.ifEmpty { null },
+                        feedback = "任务已完成"
+                    )
+                    
+                    // 如果还有剩余任务，可以考虑自动开始下一个任务
+                    // 或者保持当前状态，等待用户进一步操作
+                    
+                    // 如果没有剩余任务，可以加载教学计划
+                    if (remainingTasks.isEmpty()) {
+                        _uiState.value = _uiState.value.copy(
+                            error = "所有任务已完成，请加载新的教学计划",
+                            currentPhase = LearningPhase.PLAN_LOADED
+                        )
+                    }
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        error = result.exceptionOrNull()?.message ?: "完成任务失败"
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = e.message ?: "处理任务完成时发生错误"
+                )
+            }
+        }
     }
     
     /**
@@ -115,32 +206,62 @@ class LearningViewModel(private val studentRepository: StudentRepository) : View
      * 教学阶段：验证学生对知识点的理解
      */
     fun handleStudentAnswer(answer: String) {
+        if (answer.isBlank()) {
+            _uiState.value = _uiState.value.copy(
+                error = "答案不能为空"
+            )
+            return
+        }
+        
         viewModelScope.launch {
-            val currentTask = _uiState.value.currentTask ?: return@launch
+            val currentTask = _uiState.value.currentTasks?.firstOrNull() ?: run {
+                _uiState.value = _uiState.value.copy(
+                    error = "当前任务为空"
+                )
+                return@launch
+            }
             
             try {
                 val result = teachingTaskUseCase.handleStudentAnswer(
                     currentTask.taskId,
                     answer
-                ).getOrThrow()
-                
-                // 先更新反馈信息
-                _uiState.value = _uiState.value.copy(
-                    feedback = result.feedback
                 )
                 
-                if (result.shouldUpdateProgress) {
-                    // 更新学生学习进度：完成教学任务
-                    studentUseCase.completeTeachingTask(
-                        currentTask.studentId,
-                        currentTask.knowledgePointId
-                    )
-                } else {
-                    // 更新当前任务状态
-                    _uiState.value = _uiState.value.copy(
-                        currentTask = currentTask.copy(
-                            noResponseCount = currentTask.noResponseCount + 1
+                if (result.isSuccess) {
+                    val answerResult = result.getOrNull()
+                    if (answerResult != null) {
+                        // 先更新反馈信息
+                        _uiState.value = _uiState.value.copy(
+                            feedback = answerResult.feedback
                         )
+                        
+                        if (answerResult.shouldUpdateProgress) {
+                            // 更新学生学习进度：完成教学任务
+                            val progressResult = studentUseCase.completeTeachingTask(
+                                currentTask
+                            )
+                            
+                            if (progressResult.isFailure) {
+                                _uiState.value = _uiState.value.copy(
+                                    error = progressResult.exceptionOrNull()?.message ?: "更新学习进度失败"
+                                )
+                            }
+                        } else {
+                            // 更新当前任务状态
+                            _uiState.value = _uiState.value.copy(
+                                currentTasks = listOf(currentTask.copy(
+                                    noResponseCount = currentTask.noResponseCount + 1
+                                ))
+                            )
+                        }
+                    } else {
+                        _uiState.value = _uiState.value.copy(
+                            error = "处理答案结果为空"
+                        )
+                    }
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        error = result.exceptionOrNull()?.message ?: "处理答案失败"
                     )
                 }
             } catch (e: Exception) {
@@ -156,19 +277,81 @@ class LearningViewModel(private val studentRepository: StudentRepository) : View
      * 检验阶段：教学完成后，出题检验学生掌握情况
      */
     private fun startTesting(studentId: String, knowledgePointIds: List<String>) {
+        if (studentId.isBlank()) {
+            _uiState.value = _uiState.value.copy(
+                error = "学生ID不能为空"
+            )
+            return
+        }
+        
+        if (knowledgePointIds.isEmpty()) {
+            _uiState.value = _uiState.value.copy(
+                error = "知识点列表不能为空"
+            )
+            return
+        }
+        
         viewModelScope.launch {
             try {
-                val testingTask = testingTaskUseCase.createTestingTask(
-                    studentId,
-                    knowledgePointIds
-                ).getOrThrow()
+                // 根据知识点ID获取相关题目
+                val questions = mutableListOf<Question>()
+                knowledgePointIds.forEach { knowledgeId ->
+                    val questionResult = questionRepository.getQuestionsByKnowledgeId(knowledgeId)
+                    if (questionResult.isSuccess) {
+                        questions.addAll(questionResult.getOrNull() ?: emptyList())
+                    }
+                }
                 
-                val startedTestingTask = testingTaskUseCase.startTestingTask(testingTask.taskId).getOrThrow()
+                if (questions.isEmpty()) {
+                    _uiState.value = _uiState.value.copy(
+                        error = "未找到相关测试题目"
+                    )
+                    return@launch
+                }
                 
-                _uiState.value = _uiState.value.copy(
-                    currentTestingTask = startedTestingTask,
-                    currentPhase = LearningPhase.TESTING
+                // 取前5题作为测试题
+                val selectedQuestions = questions.take(5)
+                val questionIds = selectedQuestions.map { it.questionId }
+                
+                val testingTaskResult = testingTaskUseCase.createTestingTask(
+                    studentId = studentId,
+                    title = "知识点掌握测试",
+                    description = "检验对知识点的掌握情况",
+                    questionIds = questionIds,
+                    passingScore = 60 // 60分及格
                 )
+                
+                if (testingTaskResult.isSuccess) {
+                    val testingTask = testingTaskResult.getOrNull()
+                    if (testingTask != null) {
+                        val startedTestingTaskResult = testingTaskUseCase.startTestingTask(testingTask.taskId)
+                        if (startedTestingTaskResult.isSuccess) {
+                            val startedTestingTask = startedTestingTaskResult.getOrNull()
+                            if (startedTestingTask != null) {
+                                _uiState.value = _uiState.value.copy(
+                                    currentTest = startedTestingTask,
+                                    currentPhase = LearningPhase.TESTING
+                                )
+                            } else {
+                                _uiState.value = _uiState.value.copy(
+                                    error = "启动测试任务失败"
+                                )
+                            }
+                        } else {
+                            _uiState.value = _uiState.value.copy(
+                                error = startedTestingTaskResult.exceptionOrNull()?.message ?: "启动测试任务失败"
+                            )
+                        }
+                    } else {
+                        _uiState.value = _uiState.value.copy(
+                            error = "创建测试任务失败"
+                        )
+                    }
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        error = testingTaskResult.exceptionOrNull()?.message ?: "创建测试任务失败"
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     error = e.message ?: "开始检验失败"
@@ -181,46 +364,64 @@ class LearningViewModel(private val studentRepository: StudentRepository) : View
      * 提交检验答案
      * 检验阶段：学生答题，AI评判，更新掌握状态
      */
-    fun submitTestingAnswer(answer: String, imageAnswer: String? = null) {
+    fun submitTestAnswer(questionId: String, answer: String) {
+        if (answer.isBlank()) {
+            _uiState.value = _uiState.value.copy(
+                error = "答案不能为空"
+            )
+            return
+        }
+        
         viewModelScope.launch {
-            val currentTestingTask = _uiState.value.currentTestingTask ?: return@launch
+            val currentTest = _uiState.value.currentTest ?: run {
+                _uiState.value = _uiState.value.copy(
+                    error = "当前测试任务为空"
+                )
+                return@launch
+            }
             
             try {
-                val currentQuestion = currentTestingTask.questions[currentTestingTask.currentQuestionIndex]
-                val result = testingTaskUseCase.submitStudentAnswer(
-                    currentTestingTask.taskId,
-                    currentQuestion.questionId,
-                    currentTestingTask.studentId,
-                    answer,
-                    imageAnswer
-                ).getOrThrow()
+                // 构造答案映射
+                val answers = mapOf(questionId to answer)
                 
-                // 更新学生学习进度：完成测试任务
-                val isCorrect = result.correctCount > 0
-                studentUseCase.completeTestingTask(
-                    currentTestingTask.studentId,
-                    currentQuestion.knowledgePointId,
-                    isCorrect
+                val result = testingTaskUseCase.submitTestAnswers(
+                    currentTest.taskId,
+                    answers
                 )
                 
-                _uiState.value = _uiState.value.copy(
-                    currentTestingResult = result,
-                    feedback = "测试完成，得分：${result.totalScore}/${result.maxScore}"
-                )
-                
-                // 检查是否完成所有题目
-                if (currentTestingTask.currentQuestionIndex >= currentTestingTask.questions.size - 1) {
-                    // 完成检验任务
-                    _uiState.value = _uiState.value.copy(
-                        currentPhase = LearningPhase.COMPLETED,
-                        achievement = "恭喜完成今日学习！"
-                    )
-                } else {
-                    // 下一题
-                    _uiState.value = _uiState.value.copy(
-                        currentTestingTask = currentTestingTask.copy(
-                            currentQuestionIndex = currentTestingTask.currentQuestionIndex + 1
+                if (result.isSuccess) {
+                    val testResult = result.getOrNull()
+                    if (testResult != null) {
+                        _uiState.value = _uiState.value.copy(
+                            feedback = testResult.feedback
                         )
+                        
+                        // 更新学生学习进度：完成测试任务
+                        val progressResult = studentUseCase.completeTestingTask(
+                            currentTest.studentId,
+                            testResult.passed
+                        )
+                        
+                        if (progressResult.isFailure) {
+                            _uiState.value = _uiState.value.copy(
+                                error = progressResult.exceptionOrNull()?.message ?: "更新学习进度失败"
+                            )
+                            return@launch
+                        }
+                        
+                        // 完成检验任务
+                        _uiState.value = _uiState.value.copy(
+                            currentPhase = LearningPhase.COMPLETED,
+                            achievement = if (testResult.passed) "恭喜你通过了测试！" else "很遗憾，你没有通过测试，请继续努力！"
+                        )
+                    } else {
+                        _uiState.value = _uiState.value.copy(
+                            error = "提交答案结果为空"
+                        )
+                    }
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        error = result.exceptionOrNull()?.message ?: "提交答案失败"
                     )
                 }
             } catch (e: Exception) {
@@ -246,12 +447,11 @@ data class LearningUiState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val currentPhase: LearningPhase = LearningPhase.INITIAL,
-    val currentPlan: TeachingPlan? = null,
-    val currentTask: TeachingTask? = null,
-    val currentTestingTask: TestingTask? = null,
-    val currentTestingResult: TestingResult? = null,
+    val currentPlans: List<TeachingPlan>? = null,
+    val currentTasks: List<TeachingTask>? = null,
+    val currentTest: TestingTask? = null,
     val feedback: String? = null,
-    val achievement: String? = null
+    val achievement: String? = null,
 )
 
 /**
