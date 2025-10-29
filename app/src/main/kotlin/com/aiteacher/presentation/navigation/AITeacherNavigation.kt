@@ -116,7 +116,7 @@ fun AITeacherNavigation(
             
             // 显示教学界面
             TeachingScreen(
-                task = viewModel.currentTeachingTask.copy(studentId = studentId),
+                task = viewModel.currentTeachingTask,
                 feedback = feedback,
                 onAnswerSubmit = { answer ->
                     viewModel.submitTeachingAnswer(answer)

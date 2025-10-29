@@ -2,13 +2,9 @@ package com.aiteacher.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aiteacher.domain.model.TaskType
-import com.aiteacher.domain.model.TaskStatus
 import com.aiteacher.domain.model.TeachingTask
-import com.aiteacher.domain.model.TeachingContent
 import com.aiteacher.domain.model.TestingTask
-import com.aiteacher.domain.model.TestQuestion
-import com.aiteacher.domain.model.QuestionType
+import com.aiteacher.domain.model.Question
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,18 +22,22 @@ class LearningViewModel : ViewModel() {
     // 当前教学任务（示例数据）
     val currentTeachingTask: TeachingTask = TeachingTask(
         taskId = "task_1",
-        studentId = "student_1",
-        knowledgePointId = "kp_1",
-        taskType = TaskType.TEACHING,
-        content = TeachingContent(
-            text = "这是一个示例教学任务，讲解1+1的加法运算。",
-            images = emptyList(),
-            audio = null,
-            ppt = null
-        ),
-        questions = emptyList(),
-        status = TaskStatus.IN_PROGRESS,
-        currentQuestionIndex = 0,
+        planId = "plan_1",
+        day = 1,
+        date = "2024-01-01",
+        title = "示例教学任务",
+        description = "讲解1+1的加法运算",
+        topics = emptyList(),
+        relatedKnowledge = emptyList(),
+        estimatedTime = 30,
+        content = "",
+        resources = emptyList(),
+        completed = false,
+        completionDate = null,
+        grade = 0,
+        maxGrade = 0,
+        createdAt = System.currentTimeMillis(),
+        updatedAt = System.currentTimeMillis(),
         noResponseCount = 0
     )
     
@@ -45,24 +45,30 @@ class LearningViewModel : ViewModel() {
     val currentTestingTask: TestingTask = TestingTask(
         taskId = "test_1",
         studentId = "student_1",
-        knowledgePointIds = listOf("kp_1"),
+        title = "小测验",
+        description = "基础计算",
+        questionIds = listOf("q_1"),
         questions = listOf(
-            TestQuestion(
+            Question(
                 questionId = "q_1",
-                knowledgePointId = "kp_1",
-                content = "测试题目：1 + 1 = ?",
-                image = null,
-                type = QuestionType.CALCULATION,
-                correctAnswer = "2",
-                explanation = "1加1等于2",
-                points = 10,
-                timeLimit = 5
+                subject = "",
+                grade = 0,
+                questionText = "测试题目：1 + 1 = ?",
+                answer = "2",
+                questionType = "calc",
+                difficulty = null,
+                relatedKnowledgeIds = emptyList()
             )
         ),
-        status = TaskStatus.IN_PROGRESS,
-        currentQuestionIndex = 0,
-        startTime = "2024-01-01T00:00:00",
-        timeLimit = 30
+        totalScore = 0,
+        passingScore = 0,
+        timeLimit = 30,
+        startedAt = System.currentTimeMillis(),
+        completedAt = null,
+        score = null,
+        completed = false,
+        createdAt = System.currentTimeMillis(),
+        updatedAt = System.currentTimeMillis()
     )
     
     /**

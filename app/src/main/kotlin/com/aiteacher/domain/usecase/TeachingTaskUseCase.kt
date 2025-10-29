@@ -12,33 +12,30 @@ class TeachingTaskUseCase {
      * 创建教学任务
      */
     suspend fun createTeachingTask(
-        studentId: String,
-        knowledgePointId: String,
-        taskType: TaskType
+        planId: String,
+        day: Int,
+        title: String,
+        description: String
     ): Result<TeachingTask> {
         return try {
             val task = TeachingTask(
                 taskId = generateTaskId(),
-                studentId = studentId,
-                knowledgePointId = knowledgePointId,
-                taskType = taskType,
-                content = TeachingContent(
-                    text = "这是知识点 $knowledgePointId 的教学内容",
-                    images = emptyList(),
-                    audio = null,
-                    ppt = null
-                ),
-                questions = listOf(
-                    Question(
-                        questionId = "q_${knowledgePointId}_1",
-                        content = "请回答关于 $knowledgePointId 的问题",
-                        type = QuestionType.EXPLANATION,
-                        correctAnswer = "正确答案",
-                        explanation = "这是解释说明"
-                    )
-                ),
-                status = TaskStatus.PENDING,
-                currentQuestionIndex = 0,
+                planId = planId,
+                day = day,
+                date = currentDateString(),
+                title = title,
+                description = description,
+                topics = emptyList(),
+                relatedKnowledge = emptyList(),
+                estimatedTime = 30,
+                content = "",
+                resources = emptyList(),
+                completed = false,
+                completionDate = null,
+                grade = 0,
+                maxGrade = 0,
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
                 noResponseCount = 0
             )
             
@@ -57,18 +54,22 @@ class TeachingTaskUseCase {
             // 暂时返回模拟数据
             val task = TeachingTask(
                 taskId = taskId,
-                studentId = "student_1",
-                knowledgePointId = "7_1_1_1",
-                taskType = TaskType.TEACHING,
-                content = TeachingContent(
-                    text = "开始教学知识点 7_1_1_1",
-                    images = emptyList(),
-                    audio = null,
-                    ppt = null
-                ),
-                questions = emptyList(),
-                status = TaskStatus.IN_PROGRESS,
-                currentQuestionIndex = 0,
+                planId = "plan_1",
+                day = 1,
+                date = currentDateString(),
+                title = "开始教学",
+                description = "描述",
+                topics = emptyList(),
+                relatedKnowledge = emptyList(),
+                estimatedTime = 30,
+                content = "",
+                resources = emptyList(),
+                completed = false,
+                completionDate = null,
+                grade = 0,
+                maxGrade = 0,
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis(),
                 noResponseCount = 0
             )
             
@@ -107,8 +108,7 @@ class TeachingTaskUseCase {
      */
     suspend fun completeTeachingTask(
         taskId: String,
-        studentId: String,
-        knowledgePointId: String
+        planId: String
     ): Result<Unit> {
         return try {
             // MVP简化：暂时不更新数据库，直接返回成功
@@ -124,14 +124,20 @@ class TeachingTaskUseCase {
     private fun generateTaskId(): String {
         return "task_${System.currentTimeMillis()}"
     }
+
+    private fun currentDateString(): String {
+        // 简单占位：YYYY-MM-DD
+        val now = java.time.LocalDate.now()
+        return now.toString()
+    }
 }
 
 /**
  * 教学任务结果模型
  */
-data class TeachingTaskResult(
+ data class TeachingTaskResult(
     val isCorrect: Boolean,
     val feedback: String,
     val nextAction: String,
     val shouldUpdateProgress: Boolean
-)
+ )

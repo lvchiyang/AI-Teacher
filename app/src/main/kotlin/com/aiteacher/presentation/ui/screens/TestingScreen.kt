@@ -8,7 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aiteacher.domain.model.TestingResult
+import com.aiteacher.domain.usecase.TestingResult
 
 /**
  * 检验阶段界面
@@ -36,7 +36,7 @@ fun TestingScreen(
         )
         
         if (testingTask.questions.isNotEmpty()) {
-            val currentQuestion = testingTask.questions[testingTask.currentQuestionIndex]
+            val currentQuestion = testingTask.questions.first()
             
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -46,32 +46,14 @@ fun TestingScreen(
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
-                        text = "题目 ${testingTask.currentQuestionIndex + 1}/${testingTask.questions.size}",
+                        text = "题目",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     
                     Text(
-                        text = "知识点：${currentQuestion.knowledgePointId}",
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    
-                    Text(
-                        text = "分值：${currentQuestion.points}分",
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    
-                    Text(
-                        text = "时间限制：${currentQuestion.timeLimit}分钟",
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                    
-                    Text(
-                        text = currentQuestion.content,
+                        text = currentQuestion.questionText,
                         fontSize = 16.sp,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
@@ -99,7 +81,7 @@ fun TestingScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (testResult.correctCount > 0) 
+                        containerColor = if (testResult.isCorrect) 
                             MaterialTheme.colorScheme.primaryContainer 
                         else MaterialTheme.colorScheme.errorContainer
                     )
@@ -108,21 +90,9 @@ fun TestingScreen(
                         modifier = Modifier.padding(16.dp)
                     ) {
                         Text(
-                            text = "测试完成！得分：${testResult.totalScore}/${testResult.maxScore}",
+                            text = testResult.feedback,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        
-                        Text(
-                            text = "正确题数：${testResult.correctCount}/${testResult.totalCount}",
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        
-                        Text(
-                            text = "用时：${testResult.timeSpent}秒",
-                            fontSize = 14.sp,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }

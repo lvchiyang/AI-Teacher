@@ -41,33 +41,25 @@ fun TeachingScreen(
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = "知识点：${task.knowledgePointId}",
+                    text = task.title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 
                 Text(
-                    text = "任务类型：${if (task.taskType == com.aiteacher.domain.model.TaskType.TEACHING) "教学" else "复习"}",
+                    text = task.description,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
                 Text(
-                    text = task.content.text,
+                    text = task.content,
                     fontSize = 16.sp,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
-                if (task.questions.isNotEmpty()) {
-                    val currentQuestion = task.questions[task.currentQuestionIndex]
-                    Text(
-                        text = "问题：${currentQuestion.content}",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
+                // 示例简化：不显示问题列表，按需扩展
                 
                 OutlinedTextField(
                     value = answer,
