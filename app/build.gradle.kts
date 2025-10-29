@@ -1,111 +1,114 @@
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.devtools.ksp")
+    id("com.android.application") version "8.13.0"
+    id("org.jetbrains.kotlin.android") version "2.1.21"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.1.21"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.1.21"
+    id("com.google.devtools.ksp") version "2.1.21-2.0.1"
 }
 
 android {
     namespace = "com.aiteacher"
     compileSdk = 34
-
+    
     defaultConfig {
         applicationId = "com.aiteacher"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
+    }
+    
+    // 签名配置
+    signingConfigs {
+        create("release") {
+            storeFile = file("../aiteacher-release.keystore")
+            storePassword = "aiteacher123456"
+            keyAlias = "aiteacher"
+            keyPassword = "aiteacher123456"
         }
     }
-
+    
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
     
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
     }
     
     buildFeatures {
         compose = true
     }
     
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
     }
 }
 
 dependencies {
-    // Core Android
+    // Android Compose
+    // implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.activity:activity-compose:1.8.0")
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.activity:activity-compose:1.8.2")
-    
-    // Compose BOM
-    implementation(platform("androidx.compose:compose-bom:2024.05.00"))
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
-    
-    // Google Material (for View system components)
-    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     
     // Navigation
-    implementation("androidx.navigation:navigation-compose:2.8.0")
+    // implementation("androidx.navigation:navigation-compose:2.8.0")
+    implementation("androidx.navigation:navigation-compose:2.7.5")
+    
+    // AppCompat
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    
+    // Material Design
+    // implementation("androidx.compose.material3:material3:1.12.0")
+    implementation("androidx.compose.material3:material3:1.3.2")
+    implementation("androidx.compose.ui:ui:1.5.8")
+    implementation("androidx.compose.ui:ui-tooling-preview:1.5.8")
+    implementation("androidx.compose.foundation:foundation:1.5.8")
+
+    // Room 数据库
+    implementation("androidx.room:room-runtime:2.8.0")
+    implementation("androidx.room:room-ktx:2.8.0")
+    ksp("androidx.room:room-compiler:2.8.0")
+
+    // 阿里云DashScope SDK
+    implementation("com.alibaba:dashscope-sdk-java:2.20.0")
+
+    // Ktor 客户端
+    implementation("io.ktor:ktor-client-cio:2.3.12")
+    
+    // 日志
+    implementation("org.slf4j:slf4j-simple:2.0.17")
+    
+    // Koin 依赖注入
+    implementation("io.insert-koin:koin-android:3.5.6")
+    implementation("io.insert-koin:koin-androidx-compose:3.5.6")
     
     // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     
-    // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    // Service
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
     
-    // OpenAI Kotlin SDK for DashScope
-    implementation("com.aallam.openai:openai-client:4.0.1")
-    
-    // JSON serialization for tool call parsing
+    // 协程
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     
-    // MCP Kotlin SDK
-    implementation("io.modelcontextprotocol:kotlin-sdk:0.7.3")
-    
-    // Ktor client for HTTP requests
-    implementation("io.ktor:ktor-client-cio:3.2.1")
-    
-    // Room Database
-    implementation("androidx.room:room-runtime:2.8.2")
-    implementation("androidx.room:room-ktx:2.8.2")
-    ksp("androidx.room:room-compiler:2.8.2")
-    
+    // 日志
+    implementation("io.github.oshai:kotlin-logging:7.0.13")
+
     // Gson for JSON serialization/deserialization
     implementation("com.google.code.gson:gson:2.13.2")
     
-    // 移除Hilt依赖注入，改用简单依赖管理
-    
-    // Testing
-    testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.3.0")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2024.05.00"))
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
-

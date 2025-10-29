@@ -3,3 +3,8 @@
 在baseAgent的runOnce函数中调用了工具的处理流程，这里需要通过 server调用工具。
 BaseTool类可以删除了，因为现在我们使用的是MCP官方的SDK，而不再是自己定义的工具。
 在baseAgent实例化的时候，一起实例化了llmservice，而llmservice中也需要使用MCP server，因为prompt中需要server提供工具的使用信息。
+
+
+
+我希望你检查 @BaseAgent.kt  是否正确集成了 MCP客户端管理器。
+我们当前项目的实现是，在实例化Agent的时候，会传一个ocnfig配置文件，包含这个Agent要使用的MCP工具。然后这个Agent里面会实例化自己的MCP客户端管理器，借助这个config初始化对应的client。
