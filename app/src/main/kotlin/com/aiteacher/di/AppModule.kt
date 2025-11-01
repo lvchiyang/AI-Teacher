@@ -1,8 +1,8 @@
 package com.aiteacher.di
 
+import com.aiteacher.data.local.dao.*
+import com.aiteacher.data.local.repository.*
 import com.aiteacher.data.local.database.AppDatabase
-import com.aiteacher.data.local.dao.StudentDao
-import com.aiteacher.data.local.repository.StudentRepository
 import com.aiteacher.ai.agent.SecretaryAgent
 import com.aiteacher.ai.tool.getAllBuiltinTools
 import com.aiteacher.domain.usecase.TeachingOutlineUseCase
@@ -18,11 +18,29 @@ import com.aiteacher.presentation.viewmodel.LearningViewModel
  * Koin依赖注入模块
  */
 val appModule = module {
-    
+
     // 数据库相关
     single { AppDatabase.getDatabase(androidContext()) }
     single<StudentDao> { get<AppDatabase>().studentDao() }
+    single<TeachingTaskDao> { get<AppDatabase>().teachingTaskDao() }
+    single<TestingTaskDao> { get<AppDatabase>().testingTaskDao() }
+    single<KnowledgeDao> { get<AppDatabase>().knowledgeDao() }
+    single<QuestionDao> { get<AppDatabase>().questionDao() }
+    single<UserDao> { get<AppDatabase>().userDao() }
+    single<SessionDao> { get<AppDatabase>().sessionDao() }
+    single<MessageDao> { get<AppDatabase>().messageDao() }
+    single<TeachingPlanDao> { get<AppDatabase>().teachingPlanDao() }
+
+    // 仓库相关
     single<StudentRepository> { StudentRepository(get()) }
+    single<TeachingTaskRepository> { TeachingTaskRepository(get()) }
+    single<TestingTaskRepository> { TestingTaskRepository(get(), get()) }
+    single<QuestionRepository> { QuestionRepository(get()) }
+    single<KnowledgeRepository> { KnowledgeRepository(get()) }
+    single<UserRepository> { UserRepository(get()) }
+    single<SessionRepository> { SessionRepository(get()) }
+    single<MessageRepository> { MessageRepository(get()) }
+    single<TeachingPlanRepository> { TeachingPlanRepository(get()) }
     
     // Agent相关 - 暂时只实现SecretaryAgent
     single { SecretaryAgent(tools = getAllBuiltinTools()) }

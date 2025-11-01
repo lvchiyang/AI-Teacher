@@ -3,7 +3,7 @@ package com.aiteacher.data.local.repository
 import com.aiteacher.data.local.dao.UserDao
 import com.aiteacher.data.local.entity.UserEntity
 import com.aiteacher.data.local.entity.UserType
-import com.aiteacher.domain.model.User
+import com.aiteacher.domain.model.Student
 
 /**
  * 用户仓库类
@@ -104,44 +104,4 @@ class UserRepository(private val userDao: UserDao) {
             Result.failure(e)
         }
     }
-    
-    /**
-     * 根据学生ID获取用户
-     */
-    suspend fun getUserByStudentId(studentId: String): Result<UserEntity?> {
-        return try {
-            val users = userDao.getUsersByStudentId(studentId)
-            Result.success(users.firstOrNull())
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-}
-
-/**
- * 扩展函数：UserEntity 转 User
- */
-private fun UserEntity.toDomainModel(): User {
-    return User(
-        userId = this.userId,
-        userType = when (this.userType) {
-            UserType.PARENT -> com.aiteacher.domain.model.UserType.PARENT
-            UserType.STUDENT -> com.aiteacher.domain.model.UserType.STUDENT
-        },
-        studentId = this.studentId
-    )
-}
-
-/**
- * 扩展函数：User 转 UserEntity
- */
-private fun User.toEntity(): UserEntity {
-    return UserEntity(
-        userId = this.userId,
-        userType = when (this.userType) {
-            com.aiteacher.domain.model.UserType.PARENT -> UserType.PARENT
-            com.aiteacher.domain.model.UserType.STUDENT -> UserType.STUDENT
-        },
-        studentId = this.studentId
-    )
 }

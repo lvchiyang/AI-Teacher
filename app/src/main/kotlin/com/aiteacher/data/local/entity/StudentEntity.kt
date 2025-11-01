@@ -11,21 +11,9 @@ import java.util.Date
 @Entity(tableName = "students")
 data class StudentEntity(
     @PrimaryKey
-    @ColumnInfo(name = "student_id")
     val studentId: String,
-    
-    @ColumnInfo(name = "student_name")
     val studentName: String,
-    
-    @ColumnInfo(name = "grade")
     val grade: Int,
-    
-    @ColumnInfo(name = "current_chapter")
-    val currentChapter: String,
-    
-    @ColumnInfo(name = "created_at")
     val createdAt: Date = Date(),
-    
-    @ColumnInfo(name = "updated_at")
     val updatedAt: Date = Date()
 )

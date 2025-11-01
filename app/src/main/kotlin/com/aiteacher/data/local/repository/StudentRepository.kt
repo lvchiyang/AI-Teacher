@@ -3,7 +3,6 @@ package com.aiteacher.data.local.repository
 import com.aiteacher.data.local.dao.StudentDao
 import com.aiteacher.data.local.entity.StudentEntity
 import com.aiteacher.domain.model.Student
-import com.aiteacher.domain.model.LearningProgress
 
 /**
  * 学生数据仓库 - Room版本
@@ -64,16 +63,7 @@ private fun StudentEntity.toDomainModel(): Student {
     return Student(
         studentId = this.studentId,
         studentName = this.studentName,
-        grade = this.grade,
-        currentChapter = this.currentChapter,
-        learningProgress = LearningProgress(
-            notTaught = emptyList(),
-            taughtToReview = emptyList(),
-            notMastered = emptyList(),
-            basicMastery = emptyList(),
-            fullMastery = emptyList(),
-            lastUpdateTime = this.updatedAt.toString()
-        )
+        grade = this.grade
     )
 }
 
@@ -85,7 +75,6 @@ private fun Student.toEntity(): StudentEntity {
         studentId = this.studentId,
         studentName = this.studentName,
         grade = this.grade,
-        currentChapter = this.currentChapter,
         createdAt = java.util.Date(),
         updatedAt = java.util.Date()
     )

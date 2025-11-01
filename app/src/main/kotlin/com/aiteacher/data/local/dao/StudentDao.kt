@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface StudentDao {
     
-    @Query("SELECT * FROM students WHERE student_id = :studentId")
+    @Query("SELECT * FROM students WHERE studentId = :studentId")
     suspend fun getStudentById(studentId: String): StudentEntity?
     
     @Query("SELECT * FROM students")
@@ -26,17 +26,17 @@ interface StudentDao {
     suspend fun getRecentStudents(limit: Int): List<StudentEntity>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertStudent(student: StudentEntity)
+    suspend fun insertStudent(student: StudentEntity): Unit
     
     @Update
-    suspend fun updateStudent(student: StudentEntity)
+    suspend fun updateStudent(student: StudentEntity): Unit
     
     @Delete
-    suspend fun deleteStudent(student: StudentEntity)
+    suspend fun deleteStudent(student: StudentEntity): Unit
     
-    @Query("DELETE FROM students WHERE student_id = :studentId")
-    suspend fun deleteStudentById(studentId: String)
+    @Query("DELETE FROM students WHERE studentId = :studentId")
+    suspend fun deleteStudentById(studentId: String): Unit
     
-    @Query("SELECT EXISTS(SELECT 1 FROM students WHERE student_id = :studentId)")
+    @Query("SELECT EXISTS(SELECT 1 FROM students WHERE studentId = :studentId)")
     suspend fun studentExists(studentId: String): Boolean
 }

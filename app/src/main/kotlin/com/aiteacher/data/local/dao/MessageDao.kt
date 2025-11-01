@@ -10,32 +10,17 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MessageDao {
     
-    @Query("SELECT * FROM messages WHERE messageId = :messageId")
-    suspend fun getMessageById(messageId: String): MessageEntity?
-    
-    @Query("SELECT * FROM messages WHERE messageId = :messageId")
-    fun getMessageByIdFlow(messageId: String): Flow<MessageEntity?>
-    
-    @Query("SELECT * FROM messages WHERE sessionId = :sessionId ORDER BY created_at ASC")
+    @Query("SELECT * FROM messages WHERE sessionId = :sessionId ORDER BY createdAt ASC")
     suspend fun getMessagesBySessionId(sessionId: String): List<MessageEntity>
     
-    @Query("SELECT * FROM messages WHERE sessionId = :sessionId ORDER BY created_at ASC")
+    @Query("SELECT * FROM messages WHERE sessionId = :sessionId ORDER BY createdAt ASC")
     fun getMessagesBySessionIdFlow(sessionId: String): Flow<List<MessageEntity>>
     
-    @Query("SELECT * FROM messages WHERE sessionId = :sessionId AND role = :role ORDER BY created_at ASC")
+    @Query("SELECT * FROM messages WHERE sessionId = :sessionId AND role = :role ORDER BY createdAt ASC")
     suspend fun getMessagesBySessionIdAndRole(sessionId: String, role: String): List<MessageEntity>
     
-    @Query("SELECT * FROM messages ORDER BY created_at ASC")
-    suspend fun getAllMessages(): List<MessageEntity>
-    
-    @Query("SELECT * FROM messages ORDER BY created_at ASC")
-    fun getAllMessagesFlow(): Flow<List<MessageEntity>>
-    
-    @Query("SELECT * FROM messages WHERE sessionId = :sessionId ORDER BY created_at DESC LIMIT 1")
-    suspend fun getLatestMessageBySessionId(sessionId: String): MessageEntity?
-    
-    @Query("SELECT * FROM messages ORDER BY created_at DESC LIMIT :limit")
-    suspend fun getLatestMessages(limit: Int): List<MessageEntity>
+    @Query("SELECT * FROM messages WHERE sessionId = :sessionId ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun getLatestMessagesBySessionId(sessionId: String, limit: Int): List<MessageEntity>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: MessageEntity)

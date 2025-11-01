@@ -10,31 +10,31 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface TestingTaskDao {
     
-    @Query("SELECT * FROM testing_tasks WHERE task_id = :taskId")
+    @Query("SELECT * FROM testing_tasks WHERE taskId = :taskId")
     suspend fun getTestingTaskById(taskId: String): TestingTaskEntity?
     
-    @Query("SELECT * FROM testing_tasks WHERE task_id = :taskId")
+    @Query("SELECT * FROM testing_tasks WHERE taskId = :taskId")
     fun getTestingTaskByIdFlow(taskId: String): Flow<TestingTaskEntity?>
     
-    @Query("SELECT * FROM testing_tasks WHERE student_id = :studentId ORDER BY created_at DESC")
+    @Query("SELECT * FROM testing_tasks WHERE studentId = :studentId ORDER BY createdAt DESC")
     suspend fun getTestingTasksByStudentId(studentId: String): List<TestingTaskEntity>
     
-    @Query("SELECT * FROM testing_tasks WHERE student_id = :studentId ORDER BY created_at DESC")
+    @Query("SELECT * FROM testing_tasks WHERE studentId = :studentId ORDER BY createdAt DESC")
     fun getTestingTasksByStudentIdFlow(studentId: String): Flow<List<TestingTaskEntity>>
     
-    @Query("SELECT * FROM testing_tasks WHERE student_id = :studentId AND completed = 0 ORDER BY created_at DESC")
+    @Query("SELECT * FROM testing_tasks WHERE studentId = :studentId AND completed = 0 ORDER BY createdAt DESC")
     suspend fun getIncompleteTestingTasksByStudentId(studentId: String): List<TestingTaskEntity>
     
-    @Query("SELECT * FROM testing_tasks WHERE student_id = :studentId AND completed = 1 ORDER BY created_at DESC")
+    @Query("SELECT * FROM testing_tasks WHERE studentId = :studentId AND completed = 1 ORDER BY createdAt DESC")
     suspend fun getCompletedTestingTasksByStudentId(studentId: String): List<TestingTaskEntity>
     
-    @Query("SELECT * FROM testing_tasks WHERE completed = :completed ORDER BY created_at DESC")
+    @Query("SELECT * FROM testing_tasks WHERE completed = :completed ORDER BY createdAt DESC")
     suspend fun getTestingTasksByCompletionStatus(completed: Boolean): List<TestingTaskEntity>
     
-    @Query("SELECT * FROM testing_tasks ORDER BY created_at DESC")
+    @Query("SELECT * FROM testing_tasks ORDER BY createdAt DESC")
     suspend fun getAllTestingTasks(): List<TestingTaskEntity>
     
-    @Query("SELECT * FROM testing_tasks ORDER BY created_at DESC")
+    @Query("SELECT * FROM testing_tasks ORDER BY createdAt DESC")
     fun getAllTestingTasksFlow(): Flow<List<TestingTaskEntity>>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -49,9 +49,9 @@ interface TestingTaskDao {
     @Delete
     suspend fun deleteTestingTask(task: TestingTaskEntity)
     
-    @Query("DELETE FROM testing_tasks WHERE task_id = :taskId")
+    @Query("DELETE FROM testing_tasks WHERE taskId = :taskId")
     suspend fun deleteTestingTaskById(taskId: String)
     
-    @Query("DELETE FROM testing_tasks WHERE student_id = :studentId")
+    @Query("DELETE FROM testing_tasks WHERE studentId = :studentId")
     suspend fun deleteTestingTasksByStudentId(studentId: String)
 }

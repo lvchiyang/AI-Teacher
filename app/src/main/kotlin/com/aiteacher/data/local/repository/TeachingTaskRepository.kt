@@ -15,10 +15,10 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 根据ID获取教学任务
      */
-    suspend fun getTeachingTaskById(taskId: String): Result<TeachingTask?> {
+    suspend fun getTeachingTaskById(taskId: String): Result<TeachingTaskEntity?> {
         return try {
             val task = teachingTaskDao.getTeachingTaskById(taskId)
-            Result.success(task?.toDomainModel())
+            Result.success(task)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -27,10 +27,10 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 根据ID获取教学任务（Flow版本）
      */
-    fun getTeachingTaskByIdFlow(taskId: String): Flow<Result<TeachingTask?>> {
+    fun getTeachingTaskByIdFlow(taskId: String): Flow<Result<TeachingTaskEntity?>> {
         return teachingTaskDao.getTeachingTaskByIdFlow(taskId).map { task ->
             try {
-                Result.success(task?.toDomainModel())
+                Result.success(task)
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -40,10 +40,10 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 根据计划ID获取教学任务列表
      */
-    suspend fun getTeachingTasksByPlanId(planId: String): Result<List<TeachingTask>> {
+    suspend fun getTeachingTasksByPlanId(planId: String): Result<List<TeachingTaskEntity>> {
         return try {
             val tasks = teachingTaskDao.getTeachingTasksByPlanId(planId)
-            Result.success(tasks.map { it.toDomainModel() })
+            Result.success(tasks)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -52,10 +52,10 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 根据计划ID获取教学任务列表（Flow版本）
      */
-    fun getTeachingTasksByPlanIdFlow(planId: String): Flow<Result<List<TeachingTask>>> {
+    fun getTeachingTasksByPlanIdFlow(planId: String): Flow<Result<List<TeachingTaskEntity>>> {
         return teachingTaskDao.getTeachingTasksByPlanIdFlow(planId).map { tasks ->
             try {
-                Result.success(tasks.map { it.toDomainModel() })
+                Result.success(tasks)
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -65,10 +65,10 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 根据计划ID和天数获取教学任务
      */
-    suspend fun getTeachingTaskByPlanIdAndDay(planId: String, day: Int): Result<TeachingTask?> {
+    suspend fun getTeachingTaskByPlanIdAndDay(planId: String, day: Int): Result<TeachingTaskEntity?> {
         return try {
             val task = teachingTaskDao.getTeachingTaskByPlanIdAndDay(planId, day)
-            Result.success(task?.toDomainModel())
+            Result.success(task)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -77,10 +77,10 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 获取计划中未完成的教学任务
      */
-    suspend fun getIncompleteTeachingTasksByPlanId(planId: String): Result<List<TeachingTask>> {
+    suspend fun getIncompleteTeachingTasksByPlanId(planId: String): Result<List<TeachingTaskEntity>> {
         return try {
             val tasks = teachingTaskDao.getIncompleteTeachingTasksByPlanId(planId)
-            Result.success(tasks.map { it.toDomainModel() })
+            Result.success(tasks)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -89,10 +89,10 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 获取计划中已完成的教学任务
      */
-    suspend fun getCompletedTeachingTasksByPlanId(planId: String): Result<List<TeachingTask>> {
+    suspend fun getCompletedTeachingTasksByPlanId(planId: String): Result<List<TeachingTaskEntity>> {
         return try {
             val tasks = teachingTaskDao.getCompletedTeachingTasksByPlanId(planId)
-            Result.success(tasks.map { it.toDomainModel() })
+            Result.success(tasks)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -101,10 +101,10 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 根据完成状态获取教学任务
      */
-    suspend fun getTeachingTasksByCompletionStatus(completed: Boolean): Result<List<TeachingTask>> {
+    suspend fun getTeachingTasksByCompletionStatus(completed: Boolean): Result<List<TeachingTaskEntity>> {
         return try {
             val tasks = teachingTaskDao.getTeachingTasksByCompletionStatus(completed)
-            Result.success(tasks.map { it.toDomainModel() })
+            Result.success(tasks)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -113,10 +113,10 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 获取所有教学任务
      */
-    suspend fun getAllTeachingTasks(): Result<List<TeachingTask>> {
+    suspend fun getAllTeachingTasks(): Result<List<TeachingTaskEntity>> {
         return try {
             val tasks = teachingTaskDao.getAllTeachingTasks()
-            Result.success(tasks.map { it.toDomainModel() })
+            Result.success(tasks)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -125,10 +125,10 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 获取所有教学任务（Flow版本）
      */
-    fun getAllTeachingTasksFlow(): Flow<Result<List<TeachingTask>>> {
+    fun getAllTeachingTasksFlow(): Flow<Result<List<TeachingTaskEntity>>> {
         return teachingTaskDao.getAllTeachingTasksFlow().map { tasks ->
             try {
-                Result.success(tasks.map { it.toDomainModel() })
+                Result.success(tasks)
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -138,10 +138,9 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 保存教学任务
      */
-    suspend fun saveTeachingTask(task: TeachingTask): Result<Unit> {
+    suspend fun saveTeachingTask(task: TeachingTaskEntity): Result<Unit> {
         return try {
-            val entity = task.toEntity()
-            teachingTaskDao.insertTeachingTask(entity)
+            teachingTaskDao.insertTeachingTask(task)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -151,10 +150,9 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 批量保存教学任务
      */
-    suspend fun saveTeachingTasks(tasks: List<TeachingTask>): Result<Unit> {
+    suspend fun saveTeachingTasks(tasks: List<TeachingTaskEntity>): Result<Unit> {
         return try {
-            val entities = tasks.map { it.toEntity() }
-            teachingTaskDao.insertTeachingTasks(entities)
+            teachingTaskDao.insertTeachingTasks(tasks)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -164,10 +162,9 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 更新教学任务
      */
-    suspend fun updateTeachingTask(task: TeachingTask): Result<Unit> {
+    suspend fun updateTeachingTask(task: TeachingTaskEntity): Result<Unit> {
         return try {
-            val entity = task.toEntity()
-            teachingTaskDao.updateTeachingTask(entity)
+            teachingTaskDao.updateTeachingTask(task)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -201,10 +198,10 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 根据日期范围获取教学任务
      */
-    suspend fun getTeachingTasksByDateRange(startDate: String, endDate: String): Result<List<TeachingTask>> {
+    suspend fun getTeachingTasksByDateRange(startDate: String, endDate: String): Result<List<TeachingTaskEntity>> {
         return try {
             val tasks = teachingTaskDao.getTeachingTasksByDateRange(startDate, endDate)
-            Result.success(tasks.map { it.toDomainModel() })
+            Result.success(tasks)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -213,10 +210,10 @@ class TeachingTaskRepository(private val teachingTaskDao: TeachingTaskDao) {
     /**
      * 获取最近更新的教学任务
      */
-    suspend fun getRecentTeachingTasks(limit: Int): Result<List<TeachingTask>> {
+    suspend fun getRecentTeachingTasks(limit: Int): Result<List<TeachingTaskEntity>> {
         return try {
             val tasks = teachingTaskDao.getRecentTeachingTasks(limit)
-            Result.success(tasks.map { it.toDomainModel() })
+            Result.success(tasks)
         } catch (e: Exception) {
             Result.failure(e)
         }

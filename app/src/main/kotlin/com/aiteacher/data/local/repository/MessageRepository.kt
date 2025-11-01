@@ -2,7 +2,6 @@ package com.aiteacher.data.local.repository
 
 import com.aiteacher.data.local.dao.MessageDao
 import com.aiteacher.data.local.entity.MessageEntity
-import com.aiteacher.domain.model.Message
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -11,32 +10,7 @@ import kotlinx.coroutines.flow.map
  * 处理消息数据的业务逻辑
  */
 class MessageRepository(private val messageDao: MessageDao) {
-    
-    /**
-     * 根据消息ID获取消息
-     */
-    suspend fun getMessageById(messageId: String): Result<MessageEntity?> {
-        return try {
-            val message = messageDao.getMessageById(messageId)
-            Result.success(message)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-    
-    /**
-     * 根据消息ID获取消息（Flow版本）
-     */
-    fun getMessageByIdFlow(messageId: String): Flow<Result<MessageEntity?>> {
-        return messageDao.getMessageByIdFlow(messageId).map { message ->
-            try {
-                Result.success(message)
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
-        }
-    }
-    
+
     /**
      * 根据会话ID获取消息列表
      */
@@ -71,31 +45,6 @@ class MessageRepository(private val messageDao: MessageDao) {
             Result.success(messages)
         } catch (e: Exception) {
             Result.failure(e)
-        }
-    }
-    
-    /**
-     * 获取所有消息
-     */
-    suspend fun getAllMessages(): Result<List<MessageEntity>> {
-        return try {
-            val messages = messageDao.getAllMessages()
-            Result.success(messages)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-    
-    /**
-     * 获取所有消息（Flow版本）
-     */
-    fun getAllMessagesFlow(): Flow<Result<List<MessageEntity>>> {
-        return messageDao.getAllMessagesFlow().map { messages ->
-            try {
-                Result.success(messages)
-            } catch (e: Exception) {
-                Result.failure(e)
-            }
         }
     }
     
@@ -160,56 +109,14 @@ class MessageRepository(private val messageDao: MessageDao) {
     }
     
     /**
-     * 获取会话中的最新消息
-     */
-    suspend fun getLatestMessageBySessionId(sessionId: String): Result<MessageEntity?> {
-        return try {
-            val message = messageDao.getLatestMessageBySessionId(sessionId)
-            Result.success(message)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-    
-    /**
      * 获取指定数量的最新消息
      */
-    suspend fun getLatestMessages(limit: Int): Result<List<MessageEntity>> {
+    suspend fun getLatestMessages(sessionId: String, limit: Int): Result<List<MessageEntity>> {
         return try {
-            val messages = messageDao.getLatestMessages(limit)
+            val messages = messageDao.getLatestMessagesBySessionId(sessionId, limit)
             Result.success(messages)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
-}
-
-/**
- * 扩展函数：MessageEntity 转 Message
- */
-private fun MessageEntity.toDomainModel(): Message {
-    return Message(
-        messageId = this.messageId,
-        sessionId = this.sessionId,
-        role = this.role,
-        content = this.content,
-        tokens = this.tokens,
-        createdAt = this.createdAt,
-        metadata = this.metadata
-    )
-}
-
-/**
- * 扩展函数：Message 转 MessageEntity
- */
-private fun Message.toEntity(): MessageEntity {
-    return MessageEntity(
-        messageId = this.messageId,
-        sessionId = this.sessionId,
-        role = this.role,
-        content = this.content,
-        tokens = this.tokens,
-        createdAt = this.createdAt,
-        metadata = this.metadata
-    )
 }

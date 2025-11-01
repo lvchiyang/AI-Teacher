@@ -23,18 +23,12 @@ import androidx.room.ColumnInfo
 data class MessageEntity(
     @PrimaryKey
     val messageId: String,
-    
     @ColumnInfo(index = true)
     val sessionId: String,
-    
     val role: String,
-    
     val content: String,
-    
     val tokens: Int,
-    
-    @ColumnInfo(name = "created_at")
-    val createdAt: Long,
-    
+    @ColumnInfo(defaultValue = "CURRENT_TIMESTAMP")
+    val createdAt: Long = System.currentTimeMillis(),
     val metadata: Map<String, String> = emptyMap()
 )

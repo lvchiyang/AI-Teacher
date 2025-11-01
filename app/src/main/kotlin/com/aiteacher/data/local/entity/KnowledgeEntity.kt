@@ -9,7 +9,7 @@ import com.aiteacher.data.local.database.Converters
  * 知识点实体类
  * 对应知识库表(KnowledgeBase)
  */
-@Entity(tableName = "knowledge_base")
+@Entity(tableName = "knowledge")
 @TypeConverters(Converters::class)
 data class KnowledgeEntity(
     @PrimaryKey

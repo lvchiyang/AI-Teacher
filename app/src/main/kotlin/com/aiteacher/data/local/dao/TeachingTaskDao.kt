@@ -16,34 +16,34 @@ interface TeachingTaskDao {
     @Query("SELECT * FROM teaching_tasks WHERE task_id = :taskId")
     fun getTeachingTaskByIdFlow(taskId: String): Flow<TeachingTaskEntity?>
     
-    @Query("SELECT * FROM teaching_tasks WHERE plan_id = :planId ORDER BY day ASC")
+    @Query("SELECT * FROM teaching_tasks WHERE planId = :planId ORDER BY day ASC")
     suspend fun getTeachingTasksByPlanId(planId: String): List<TeachingTaskEntity>
     
-    @Query("SELECT * FROM teaching_tasks WHERE plan_id = :planId ORDER BY day ASC")
+    @Query("SELECT * FROM teaching_tasks WHERE planId = :planId ORDER BY day ASC")
     fun getTeachingTasksByPlanIdFlow(planId: String): Flow<List<TeachingTaskEntity>>
     
-    @Query("SELECT * FROM teaching_tasks WHERE plan_id = :planId AND day = :day")
+    @Query("SELECT * FROM teaching_tasks WHERE planId = :planId AND day = :day")
     suspend fun getTeachingTaskByPlanIdAndDay(planId: String, day: Int): TeachingTaskEntity?
     
-    @Query("SELECT * FROM teaching_tasks WHERE plan_id = :planId AND completed = 0 ORDER BY day ASC")
+    @Query("SELECT * FROM teaching_tasks WHERE planId = :planId AND completed = 0 ORDER BY day ASC")
     suspend fun getIncompleteTeachingTasksByPlanId(planId: String): List<TeachingTaskEntity>
     
-    @Query("SELECT * FROM teaching_tasks WHERE plan_id = :planId AND completed = 1 ORDER BY day ASC")
+    @Query("SELECT * FROM teaching_tasks WHERE planId = :planId AND completed = 1 ORDER BY day ASC")
     suspend fun getCompletedTeachingTasksByPlanId(planId: String): List<TeachingTaskEntity>
     
-    @Query("SELECT * FROM teaching_tasks WHERE completed = :completed ORDER BY created_at DESC")
+    @Query("SELECT * FROM teaching_tasks WHERE completed = :completed ORDER BY createdAt DESC")
     suspend fun getTeachingTasksByCompletionStatus(completed: Boolean): List<TeachingTaskEntity>
     
-    @Query("SELECT * FROM teaching_tasks ORDER BY created_at DESC")
+    @Query("SELECT * FROM teaching_tasks ORDER BY createdAt DESC")
     suspend fun getAllTeachingTasks(): List<TeachingTaskEntity>
     
-    @Query("SELECT * FROM teaching_tasks ORDER BY created_at DESC")
+    @Query("SELECT * FROM teaching_tasks ORDER BY createdAt DESC")
     fun getAllTeachingTasksFlow(): Flow<List<TeachingTaskEntity>>
     
     @Query("SELECT * FROM teaching_tasks WHERE date BETWEEN :startDate AND :endDate ORDER BY date ASC")
     suspend fun getTeachingTasksByDateRange(startDate: String, endDate: String): List<TeachingTaskEntity>
     
-    @Query("SELECT * FROM teaching_tasks ORDER BY created_at DESC LIMIT :limit")
+    @Query("SELECT * FROM teaching_tasks ORDER BY createdAt DESC LIMIT :limit")
     suspend fun getRecentTeachingTasks(limit: Int): List<TeachingTaskEntity>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -61,6 +61,6 @@ interface TeachingTaskDao {
     @Query("DELETE FROM teaching_tasks WHERE task_id = :taskId")
     suspend fun deleteTeachingTaskById(taskId: String)
     
-    @Query("DELETE FROM teaching_tasks WHERE plan_id = :planId")
+    @Query("DELETE FROM teaching_tasks WHERE planId = :planId")
     suspend fun deleteTeachingTasksByPlanId(planId: String)
 }

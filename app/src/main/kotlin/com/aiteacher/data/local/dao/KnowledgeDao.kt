@@ -10,48 +10,48 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface KnowledgeDao {
     
-    @Query("SELECT * FROM knowledge_base WHERE knowledgeId = :knowledgeId")
+    @Query("SELECT * FROM knowledge WHERE knowledgeId = :knowledgeId")
     suspend fun getKnowledgeById(knowledgeId: String): KnowledgeEntity?
     
-    @Query("SELECT * FROM knowledge_base WHERE knowledgeId = :knowledgeId")
+    @Query("SELECT * FROM knowledge WHERE knowledgeId = :knowledgeId")
     fun getKnowledgeByIdFlow(knowledgeId: String): Flow<KnowledgeEntity?>
     
-    @Query("SELECT * FROM knowledge_base WHERE subject = :subject AND grade = :grade")
+    @Query("SELECT * FROM knowledge WHERE subject = :subject AND grade = :grade")
     suspend fun getKnowledgeBySubjectAndGrade(subject: String, grade: Int): List<KnowledgeEntity>
     
-    @Query("SELECT * FROM knowledge_base WHERE chapter = :chapter")
+    @Query("SELECT * FROM knowledge WHERE chapter = :chapter")
     suspend fun getKnowledgeByChapter(chapter: String): List<KnowledgeEntity>
     
-    @Query("SELECT * FROM knowledge_base")
+    @Query("SELECT * FROM knowledge")
     suspend fun getAllKnowledge(): List<KnowledgeEntity>
     
-    @Query("SELECT * FROM knowledge_base")
+    @Query("SELECT * FROM knowledge")
     fun getAllKnowledgeFlow(): Flow<List<KnowledgeEntity>>
     
-    @Query("SELECT * FROM knowledge_base WHERE concept LIKE '%' || :keyword || '%' OR chapter LIKE '%' || :keyword || '%' OR keywords LIKE '%' || :keyword || '%'")
+    @Query("SELECT * FROM knowledge WHERE concept LIKE '%' || :keyword || '%' OR chapter LIKE '%' || :keyword || '%' OR keywords LIKE '%' || :keyword || '%'")
     suspend fun searchKnowledge(keyword: String): List<KnowledgeEntity>
     
-    @Query("SELECT * FROM knowledge_base WHERE knowledgeId IN (:knowledgeIds)")
+    @Query("SELECT * FROM knowledge WHERE knowledgeId IN (:knowledgeIds)")
     suspend fun getKnowledgeByIds(knowledgeIds: List<String>): List<KnowledgeEntity>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertKnowledge(knowledge: KnowledgeEntity)
+    suspend fun insertKnowledge(knowledge: KnowledgeEntity): Unit
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAllKnowledge(knowledgeList: List<KnowledgeEntity>)
+    suspend fun insertAllKnowledge(knowledgeList: List<KnowledgeEntity>): Unit
     
     @Update
-    suspend fun updateKnowledge(knowledge: KnowledgeEntity)
+    suspend fun updateKnowledge(knowledge: KnowledgeEntity): Unit
     
     @Delete
-    suspend fun deleteKnowledge(knowledge: KnowledgeEntity)
+    suspend fun deleteKnowledge(knowledge: KnowledgeEntity): Unit
     
-    @Query("DELETE FROM knowledge_base WHERE knowledgeId = :knowledgeId")
-    suspend fun deleteKnowledgeById(knowledgeId: String)
+    @Query("DELETE FROM knowledge WHERE knowledgeId = :knowledgeId")
+    suspend fun deleteKnowledgeById(knowledgeId: String): Unit
     
-    @Query("DELETE FROM knowledge_base WHERE knowledgeId IN (:knowledgeIds)")
-    suspend fun deleteKnowledgeByIds(knowledgeIds: List<String>)
+    @Query("DELETE FROM knowledge WHERE knowledgeId IN (:knowledgeIds)")
+    suspend fun deleteKnowledgeByIds(knowledgeIds: List<String>): Unit
     
-    @Query("DELETE FROM knowledge_base")
-    suspend fun deleteAllKnowledge()
+    @Query("DELETE FROM knowledge")
+    suspend fun deleteAllKnowledge(): Unit
 }

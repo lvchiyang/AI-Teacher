@@ -23,17 +23,10 @@ import androidx.room.ColumnInfo
 data class SessionEntity(
     @PrimaryKey
     val sessionId: String,
-    
     @ColumnInfo(index = true)
     val userId: String,
-    
     val title: String,
-    
-    @ColumnInfo(name = "created_at")
     val createdAt: Long,
-    
-    @ColumnInfo(name = "updated_at")
     val updatedAt: Long,
-    
     val tags: List<String> = emptyList()
 )

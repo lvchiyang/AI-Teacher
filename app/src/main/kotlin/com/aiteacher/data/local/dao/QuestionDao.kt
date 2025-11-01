@@ -19,13 +19,13 @@ interface QuestionDao {
     @Query("SELECT * FROM question_base WHERE subject = :subject AND grade = :grade")
     suspend fun getQuestionsBySubjectAndGrade(subject: String, grade: Int): List<QuestionEntity>
     
-    @Query("SELECT * FROM question_base WHERE question_type = :questionType")
+    @Query("SELECT * FROM question_base WHERE questionType = :questionType")
     suspend fun getQuestionsByType(questionType: String): List<QuestionEntity>
     
     @Query("SELECT * FROM question_base WHERE difficulty = :difficulty")
     suspend fun getQuestionsByDifficulty(difficulty: Int): List<QuestionEntity>
-    
-    @Query("SELECT * FROM question_base WHERE related_knowledge_ids LIKE '%' || :knowledgeId || '%' ")
+
+    @Query("SELECT * FROM question_base WHERE relatedKnowledgeIds = :knowledgeId")
     suspend fun getQuestionsByKnowledgeId(knowledgeId: String): List<QuestionEntity>
     
     @Query("SELECT * FROM question_base")
@@ -37,7 +37,7 @@ interface QuestionDao {
     @Query("SELECT * FROM question_base WHERE questionText LIKE '%' || :keyword || '%' OR answer LIKE '%' || :keyword || '%'")
     suspend fun searchQuestions(keyword: String): List<QuestionEntity>
     
-    @Query("SELECT * FROM question_base WHERE subject = :subject AND grade = :grade AND question_type = :questionType")
+    @Query("SELECT * FROM question_base WHERE subject = :subject AND grade = :grade AND questionType = :questionType")
     suspend fun getQuestionsBySubjectGradeAndType(subject: String, grade: Int, questionType: String): List<QuestionEntity>
     
     @Query("SELECT * FROM question_base WHERE subject = :subject AND grade = :grade AND difficulty = :difficulty")

@@ -17,8 +17,8 @@ import com.aiteacher.domain.model.LearningResource
     foreignKeys = [
         ForeignKey(
             entity = TeachingPlanEntity::class,
-            parentColumns = ["plan_id"],
-            childColumns = ["plan_id"],
+            parentColumns = ["planId"],
+            childColumns = ["planId"],
             onDelete = ForeignKey.CASCADE
         )
     ]
@@ -29,7 +29,7 @@ data class TeachingTaskEntity(
     @ColumnInfo(name = "task_id")
     val taskId: String,
     
-    @ColumnInfo(name = "plan_id", index = true)
+    @ColumnInfo(index = true)
     val planId: String,
     
     val day: Int,
@@ -41,11 +41,9 @@ data class TeachingTaskEntity(
     val description: String,
     
     val topics: List<String>,
-    
-    @ColumnInfo(name = "related_knowledge")
+
     val relatedKnowledge: List<KnowledgeItem>,
-    
-    @ColumnInfo(name = "estimated_time")
+
     val estimatedTime: Int, // 预估学习时间（分钟）
     
     val content: String,
@@ -53,18 +51,14 @@ data class TeachingTaskEntity(
     val resources: List<LearningResource>,
     
     val completed: Boolean,
-    
-    @ColumnInfo(name = "completion_date")
+
     val completionDate: String?,
     
-    val grade: Int,
-    
-    @ColumnInfo(name = "max_grade")
-    val maxGrade: Int,
-    
-    @ColumnInfo(name = "created_at")
+    val grade: Int?,
+
+    val maxGrade: Int?,
+
     val createdAt: Long,
     
-    @ColumnInfo(name = "updated_at")
     val updatedAt: Long
 )

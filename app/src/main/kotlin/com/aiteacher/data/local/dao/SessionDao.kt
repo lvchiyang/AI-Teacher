@@ -16,23 +16,20 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE sessionId = :sessionId")
     fun getSessionByIdFlow(sessionId: String): Flow<SessionEntity?>
     
-    @Query("SELECT * FROM sessions WHERE userId = :userId ORDER BY created_at DESC")
+    @Query("SELECT * FROM sessions WHERE userId = :userId ORDER BY createdAt DESC")
     suspend fun getSessionsByUserId(userId: String): List<SessionEntity>
     
-    @Query("SELECT * FROM sessions WHERE userId = :userId ORDER BY created_at DESC")
+    @Query("SELECT * FROM sessions WHERE userId = :userId ORDER BY createdAt DESC")
     fun getSessionsByUserIdFlow(userId: String): Flow<List<SessionEntity>>
     
-    @Query("SELECT * FROM sessions ORDER BY created_at DESC")
+    @Query("SELECT * FROM sessions ORDER BY createdAt DESC")
     suspend fun getAllSessions(): List<SessionEntity>
     
-    @Query("SELECT * FROM sessions ORDER BY created_at DESC")
+    @Query("SELECT * FROM sessions ORDER BY createdAt DESC")
     fun getAllSessionsFlow(): Flow<List<SessionEntity>>
-    
-    @Query("SELECT * FROM sessions WHERE tags LIKE '%' || :tag || '%' ORDER BY created_at DESC")
-    suspend fun getSessionsByTag(tag: String): List<SessionEntity>
-    
-    @Query("SELECT * FROM sessions ORDER BY created_at DESC LIMIT :limit")
-    suspend fun getRecentSessions(limit: Int): List<SessionEntity>
+
+    @Query("SELECT * FROM sessions WHERE userId = :userId ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun getRecentSessionsByUserId(userId: String, limit: Int): List<SessionEntity>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSession(session: SessionEntity)
