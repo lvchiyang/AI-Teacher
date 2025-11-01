@@ -139,7 +139,7 @@ class SecretaryAgent(
         
         return try {
             android.util.Log.d("SecretaryAgent", "开始调用LLM生成教学计划")
-            val result = runOnce(prompt)
+            val result = runReAct(prompt)
             if (result.isSuccess) {
                 val response = result.getOrThrow()
                 android.util.Log.d("SecretaryAgent", "LLM响应: $response")

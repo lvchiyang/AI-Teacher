@@ -27,17 +27,20 @@ class MathTool : BaseTool(
         "required" to listOf("operation", "a", "b")
     )
 ) {
-    override suspend fun toolFunction(vararg args: Any): Any {
+    override suspend fun toolFunction(vararg args: Any): ToolResult {
         val operation = args.getOrNull(0) as? String ?: "add"
         val a = (args.getOrNull(1) as? Number)?.toDouble() ?: 0.0
         val b = (args.getOrNull(2) as? Number)?.toDouble() ?: 0.0
         
-        return when (operation) {
+        val result = when (operation) {
             "add" -> a + b
             "subtract" -> a - b
             "multiply" -> a * b
             "divide" -> if (b != 0.0) a / b else throw IllegalArgumentException("Division by zero")
             else -> throw IllegalArgumentException("Unknown operation: $operation")
         }
+        
+        // 数学计算结果是查询类，需要LLM解释
+        return ToolResult.QueryResult(result)
     }
 }

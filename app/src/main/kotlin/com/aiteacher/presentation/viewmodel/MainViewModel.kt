@@ -2,6 +2,8 @@ package com.aiteacher.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aiteacher.ai.agent.HomeAgent
+import com.aiteacher.ai.tool.NavigationTool
 import com.aiteacher.data.local.repository.StudentRepository
 import com.aiteacher.domain.model.Student
 import kotlinx.coroutines.channels.Channel
@@ -28,9 +30,25 @@ class MainViewModel(
     // 当前学生信息 - 使用StateFlow便于直接读取最新值
     private val _currentStudent = kotlinx.coroutines.flow.MutableStateFlow<Student?>(null)
     val currentStudent: kotlinx.coroutines.flow.StateFlow<Student?> = _currentStudent.asStateFlow()
+    
+    // ========== 对话相关状态（整合自 HomeViewModel）==========
+    // 对话消息列表
+    private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
+    
+    // 是否正在处理中
+    private val _isProcessing = MutableStateFlow(false)
+    val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
+    
+    // HomeAgent 实例（延迟初始化，需要 NavigationTool）
+    private var homeAgent: HomeAgent? = null
+    
+    // 导航回调函数（由 UI 层设置）
+    private var navigateTo: ((String) -> Unit)? = null
 
     init {
         initializeApp()
+        initializeChatMessages()
     }
 
     /**
@@ -85,16 +103,7 @@ class MainViewModel(
                 val defaultStudent = Student(
                     studentId = studentId,
                     studentName = studentName,
-                    grade = grade,
-                    currentChapter = "第一章 有理数",
-                    learningProgress = com.aiteacher.domain.model.LearningProgress(
-                        notTaught = emptyList(),
-                        taughtToReview = emptyList(),
-                        notMastered = emptyList(),
-                        basicMastery = emptyList(),
-                        fullMastery = emptyList(),
-                        lastUpdateTime = Date().toString()
-                    )
+                    grade = grade
                 )
                 _currentStudent.value = defaultStudent
             }
@@ -107,6 +116,143 @@ class MainViewModel(
     fun refresh() {
         initializeApp()
     }
+    
+    // ========== 对话相关方法（整合自 HomeViewModel）==========
+    
+    /**
+     * 初始化聊天消息（添加欢迎消息）
+     */
+    private fun initializeChatMessages() {
+        _messages.value = listOf(
+            ChatMessage(
+                role = "assistant",
+                content = "你好！我是AI教师助手，可以帮助你：\n" +
+                        "• 学习各学科知识（数学、语文、英语、物理、化学）\n" +
+                        "• 做练习题和测试\n" +
+                        "• 查看学习统计和进度\n" +
+                        "• 管理个人信息\n\n" +
+                        "请告诉我你想做什么？",
+                timestamp = System.currentTimeMillis()
+            )
+        )
+    }
+    
+    /**
+     * 初始化 HomeAgent（需要在 UI 层设置导航回调后调用）
+     */
+    fun initializeAgent(navigateCallback: (String) -> Unit) {
+        navigateTo = navigateCallback
+        
+        // 创建 NavigationTool（即使学生信息暂时为 null，也先创建工具）
+        val navTool = NavigationTool(
+            getCurrentStudent = { _currentStudent.value },
+            navigateTo = navigateCallback
+        )
+        
+        // 创建 HomeAgent
+        homeAgent = HomeAgent(tools = listOf(navTool))
+        
+        // 如果学生信息还未加载，在 viewModelScope 中等待
+        val currentStudent = _currentStudent.value
+        if (currentStudent == null) {
+            viewModelScope.launch {
+                // 等待学生信息加载完成（最多等待一段时间）
+                var retryCount = 0
+                while (retryCount < 10 && _currentStudent.value == null) {
+                    kotlinx.coroutines.delay(100)
+                    retryCount++
+                }
+                // 即使等待超时，Agent 也已经创建了，可以在运行时再检查学生信息
+            }
+        }
+    }
+    
+    /**
+     * 发送用户消息
+     */
+    fun sendMessage(userInput: String) {
+        if (userInput.isBlank() || _isProcessing.value) return
+        
+        // 添加用户消息
+        val userMessage = ChatMessage(
+            role = "user",
+            content = userInput,
+            timestamp = System.currentTimeMillis()
+        )
+        _messages.value = _messages.value + userMessage
+        _isProcessing.value = true
+        
+        // 确保 Agent 已初始化
+        if (homeAgent == null) {
+            // 如果导航回调已设置，初始化 Agent
+            navigateTo?.let { initializeAgent(it) }
+        }
+        
+        viewModelScope.launch {
+            try {
+                // 调用 HomeAgent
+                val agent = homeAgent
+                if (agent != null) {
+                    val result = agent.runReAct(userInput)
+                    
+                    result.onSuccess { response ->
+                        // 添加助手回复
+                        val assistantMessage = ChatMessage(
+                            role = "assistant",
+                            content = response,
+                            timestamp = System.currentTimeMillis()
+                        )
+                        _messages.value = _messages.value + assistantMessage
+                    }.onFailure { error ->
+                        // 添加错误消息
+                        val errorMessage = ChatMessage(
+                            role = "assistant",
+                            content = "抱歉，处理您的请求时出现了错误：${error.message}",
+                            timestamp = System.currentTimeMillis()
+                        )
+                        _messages.value = _messages.value + errorMessage
+                    }
+                } else {
+                    // Agent 未初始化
+                    val errorMessage = ChatMessage(
+                        role = "assistant",
+                        content = "系统正在初始化，请稍候...",
+                        timestamp = System.currentTimeMillis()
+                    )
+                    _messages.value = _messages.value + errorMessage
+                }
+            } catch (e: Exception) {
+                val errorMessage = ChatMessage(
+                    role = "assistant",
+                    content = "处理消息时出错：${e.message}",
+                    timestamp = System.currentTimeMillis()
+                )
+                _messages.value = _messages.value + errorMessage
+            } finally {
+                _isProcessing.value = false
+            }
+        }
+    }
+    
+    /**
+     * 清空对话历史
+     */
+    fun clearMessages() {
+        _messages.value = emptyList()
+        homeAgent?.let {
+            // 重新初始化 Agent 以清空记忆
+            navigateTo?.let { callback ->
+                val navTool = NavigationTool(
+                    getCurrentStudent = { _currentStudent.value },
+                    navigateTo = callback
+                )
+                homeAgent = HomeAgent(tools = listOf(navTool))
+            }
+        }
+        
+        // 重新添加欢迎消息
+        initializeChatMessages()
+    }
 }
 
 /**
@@ -116,4 +262,13 @@ data class MainUiState(
     val isLoading: Boolean = false,
     val isInitialized: Boolean = false,
     val error: String? = null
+)
+
+/**
+ * 聊天消息数据类
+ */
+data class ChatMessage(
+    val role: String, // "user" 或 "assistant"
+    val content: String,
+    val timestamp: Long
 )
