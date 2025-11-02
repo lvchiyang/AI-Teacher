@@ -20,7 +20,8 @@ class SecretaryAgent(
     name = "SecretaryAgent",
     description = "教秘代理，负责整体教学计划和进度管理",
     model = model,
-    tools = tools
+    tools = tools,
+    memoryManagerName = "SecretaryAgent"
 ) {
     
     /**

@@ -10,8 +10,8 @@ data class TestingTask(
     val description: String,
     val questionIds: List<String>, // 测试题目的ID列表
     val questions: List<Question>, // 测试题目列表
-    val totalScore: Int, // 总分
-    val passingScore: Int, // 通过分数
+    val totalScore: Int?, // 总分
+    val passingScore: Int?, // 通过分数
     val timeLimit: Int?, // 时间限制（分钟）
     val startedAt: Long?, // 开始时间
     val completedAt: Long?, // 完成时间
