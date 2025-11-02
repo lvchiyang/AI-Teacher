@@ -56,7 +56,7 @@ val appModule = module {
     factory { StudentUseCase(get()) }
     
     // ViewModel - 使用single让MainViewModel全局共享
-    single { MainViewModel(get()) }  // 改为single，让所有界面共享同一个实例
+    single { MainViewModel(get()) }  // 改为single，让所有界面共享同一个实例（包含对话功能）
     viewModel { TeachingOutlineViewModel(get(), get()) }  // 注入useCase和mainViewModel
     viewModel { LearningViewModel() }
 }

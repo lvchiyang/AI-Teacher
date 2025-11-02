@@ -10,6 +10,7 @@ import com.alibaba.dashscope.exception.InputRequiredException
 import com.alibaba.dashscope.exception.NoApiKeyException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.*
 import java.util.Arrays
 
 /**
@@ -124,53 +125,6 @@ class LLMModel(
         }
     }
     
-    /**
-     * 解析工具调用
-     * qwen模型支持MCP功能，可以解析工具调用
-     */
-    fun parseToolCall(output: LLMOutput?): List<Map<String, Any>>? {
-        if (output == null) return null
-        
-        try {
-            val content = output.content
-            
-            // 检查是否包含工具调用标记
-            if (content.contains("```json") && content.contains("tool_call")) {
-                // 解析JSON格式的工具调用
-                val jsonStart = content.indexOf("```json") + 7
-                val jsonEnd = content.indexOf("```", jsonStart)
-                
-                if (jsonStart > 6 && jsonEnd > jsonStart) {
-                    val jsonContent = content.substring(jsonStart, jsonEnd).trim()
-                    
-                    // 简单的JSON解析（实际项目中建议使用专门的JSON库）
-                    if (jsonContent.contains("\"tool_call\"")) {
-                        return listOf(
-                            mapOf(
-                                "type" to "tool_call",
-                                "content" to jsonContent
-                            )
-                        )
-                    }
-                }
-            }
-            
-            // 检查是否包含函数调用标记
-            if (content.contains("function_call") || content.contains("tool_use")) {
-                return listOf(
-                    mapOf(
-                        "type" to "function_call",
-                        "content" to content
-                    )
-                )
-            }
-            
-            return emptyList()
-        } catch (e: Exception) {
-            println("Error parsing tool calls: ${e.message}")
-            return null
-        }
-    }
     
     /**
      * 获取可用工具列表
@@ -187,37 +141,12 @@ class LLMModel(
     }
     
     /**
-     * 生成支持MCP工具调用的文本
-     * 为qwen模型添加工具调用提示
+     * 生成支持工具调用的文本
+     * 注意：工具调用的格式约定和解析由 BaseAgent 负责
      */
     suspend fun generateTextWithTools(messages: List<Map<String, String>>): LLMOutput? {
-        // 如果有工具，添加工具调用提示
-        val enhancedMessages = if (tools.isNotEmpty()) {
-            val toolPrompt = buildString {
-                appendLine("你是一个AI助手，可以使用以下工具：")
-                tools.forEach { tool ->
-                    val name = tool["name"] as? String ?: "unknown"
-                    val description = tool["description"] as? String ?: ""
-                    appendLine("- $name: $description")
-                }
-                appendLine("\n当需要使用工具时，请以以下格式回复：")
-                appendLine("```json")
-                appendLine("{")
-                appendLine("  \"tool_call\": {")
-                appendLine("    \"name\": \"工具名称\",")
-                appendLine("    \"arguments\": {")
-                appendLine("      \"参数名\": \"参数值\"")
-                appendLine("    }")
-                appendLine("  }")
-                appendLine("}")
-                appendLine("```")
-            }
-            
-            messages + mapOf("role" to "system", "content" to toolPrompt)
-        } else {
-            messages
-        }
-        
-        return generateText(enhancedMessages)
+        // LLMModel 只负责调用 LLM，不添加工具调用提示
+        // 工具调用的格式约定在 BaseAgent 的系统提示词中定义
+        return generateText(messages)
     }
 }

@@ -26,6 +26,48 @@ data class ToolFunction(
 )
 
 /**
+ * 工具结果类型
+ * 用于区分查询类工具和执行类工具
+ */
+sealed class ToolResult {
+    /**
+     * 查询类结果 - 需要LLM进一步处理和解释
+     * 例如：获取天气数据、查询信息等
+     */
+    data class QueryResult(val data: Any) : ToolResult() {
+        override fun toString(): String = data.toString()
+    }
+    
+    /**
+     * 执行类结果 - 操作已执行或执行失败
+     * 例如：导航跳转、文件操作等
+     * 
+     * @param message 结果消息（成功或失败的描述）
+     * @param success 是否成功执行，true 表示成功，false 表示失败
+     *                成功时：可以直接返回给用户，Agent 结束循环
+     *                失败时：需要继续 LLM 循环，让 LLM 处理错误并告知用户
+     */
+    data class ExecuteResult(
+        val message: String,
+        val success: Boolean = true
+    ) : ToolResult() {
+        override fun toString(): String = message
+        
+        companion object {
+            /**
+             * 成功执行的快捷方法
+             */
+            fun success(message: String) = ExecuteResult(message, success = true)
+            
+            /**
+             * 执行失败的快捷方法
+             */
+            fun failure(message: String) = ExecuteResult(message, success = false)
+        }
+    }
+}
+
+/**
  * 基础工具抽象类
  */
 abstract class BaseTool(
@@ -40,8 +82,11 @@ abstract class BaseTool(
     
     /**
      * 工具执行函数 - 子类必须实现
+     * 返回 ToolResult，可以是 QueryResult（需要LLM处理）或 ExecuteResult（直接返回）
+     * 
+     * 为了向后兼容，如果返回 String 或其他类型，BaseAgent 会自动包装为 QueryResult
      */
-    abstract suspend fun toolFunction(vararg args: Any): Any
+    abstract suspend fun toolFunction(vararg args: Any): ToolResult
     
     /**
      * 将工具转换为工具规格
@@ -63,19 +108,28 @@ abstract class BaseTool(
      * 对应 Python 版本的 from_spec() 类方法
      */
     companion object {
+        @Suppress("UNUSED_PARAMETER")
         fun fromSpec(
             spec: Map<String, Any>,
             toolFunction: suspend (Array<Any>) -> Any
         ): BaseTool {
-            val functionBlock = spec["function"] as? Map<String, Any> ?: emptyMap()
+            @Suppress("UNCHECKED_CAST")
+            val functionBlock = (spec["function"] as? Map<*, *>) as? Map<String, Any> ?: emptyMap()
             val name = functionBlock["name"] as? String ?: ""
             val description = functionBlock["description"] as? String ?: ""
-            val parameters = functionBlock["parameters"] as? Map<String, Any> ?: emptyMap()
+            @Suppress("UNCHECKED_CAST")
+            val parameters = (functionBlock["parameters"] as? Map<*, *>) as? Map<String, Any> ?: emptyMap()
             val type = spec["type"] as? String ?: "function"
             
             return object : BaseTool(name, description, parameters, type) {
-                override suspend fun toolFunction(vararg args: Any): Any {
-                    return toolFunction(args)
+                override suspend fun toolFunction(vararg args: Any): ToolResult {
+                    val result = toolFunction(args)
+                    // toolFunction 参数类型是 (Array<Any>) -> Any，返回的可能是 ToolResult 或其他类型
+                    // 如果已经是 ToolResult，直接返回；否则包装为 QueryResult
+                    return when (result) {
+                        is ToolResult -> result
+                        else -> ToolResult.QueryResult(result)
+                    }
                 }
             }
         }
@@ -120,7 +174,7 @@ class ToolManager {
     /**
      * 调用工具
      */
-    suspend fun callTool(toolName: String, vararg args: Any): Any? {
+    suspend fun callTool(toolName: String, vararg args: Any): ToolResult? {
         val tool = getTool(toolName)
         return if (tool != null) {
             try {
@@ -128,8 +182,9 @@ class ToolManager {
                 tool.toolOutput = result
                 result
             } catch (e: Exception) {
-                tool.toolOutput = "Error: ${e.message}"
-                throw e
+                val errorResult = ToolResult.ExecuteResult("Error: ${e.message}")
+                tool.toolOutput = errorResult
+                errorResult
             }
         } else {
             throw IllegalArgumentException("Tool not found: $toolName")

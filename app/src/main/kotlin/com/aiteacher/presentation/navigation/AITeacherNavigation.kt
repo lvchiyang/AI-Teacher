@@ -14,12 +14,14 @@ import kotlinx.coroutines.GlobalScope
 import org.koin.compose.getKoin
 import com.aiteacher.presentation.ui.screens.LoginScreen
 import com.aiteacher.presentation.ui.screens.HomeScreen
+import com.aiteacher.presentation.ui.screens.HomeChatScreen
 import com.aiteacher.presentation.ui.screens.ProfileScreen
 import com.aiteacher.presentation.ui.screens.ParentDashboardScreen
 import com.aiteacher.presentation.ui.screens.TeachingOutlineScreen
 import com.aiteacher.presentation.ui.screens.LlmTestScreen
 import com.aiteacher.presentation.ui.screens.TeachingScreen
 import com.aiteacher.presentation.ui.screens.TestingScreen
+import com.aiteacher.presentation.ui.screens.StatisticsScreen
 import com.aiteacher.presentation.viewmodel.LearningViewModel
 import org.koin.androidx.compose.koinViewModel
 
@@ -36,8 +38,8 @@ fun AITeacherNavigation(
         composable(Screen.Login.route) {
             LoginScreen(
                 onLoginSuccess = { studentId, studentName, grade ->
-                    // 先跳转，然后异步设置学生信息（这样HomeScreen能立即显示）
-                    navController.navigate(Screen.Home.route) {
+                    // 先跳转到对话主页，然后异步设置学生信息
+                    navController.navigate(Screen.HomeChat.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
                     // 异步设置学生信息（在Composable外执行协程）
@@ -50,6 +52,23 @@ fun AITeacherNavigation(
             )
         }
         
+        // 新的对话主页
+        composable(Screen.HomeChat.route) {
+            HomeChatScreen(
+                navController = navController,
+                onNavigateToProfile = {
+                    navController.navigate(Screen.Profile.route)
+                },
+                onLogout = {
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(Screen.HomeChat.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+        
+        // 旧的主页（已注释，保留备用）
+        /*
         composable(Screen.Home.route) {
             HomeScreen(
                 onNavigateToMath = {
@@ -61,7 +80,7 @@ fun AITeacherNavigation(
                 },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
+                        popUpTo(0) { inclusive = true }
                     }
                 },
                 onNavigateToLlmTest = {
@@ -69,6 +88,7 @@ fun AITeacherNavigation(
                 }
             )
         }
+        */
         
         composable(Screen.Profile.route) {
             ProfileScreen(
@@ -77,19 +97,23 @@ fun AITeacherNavigation(
                 },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )
         }
         
-        composable(Screen.TeachingOutline.route) {
+        // 学科大纲界面（支持学科参数）
+        composable(Screen.TeachingOutline.route) { backStackEntry ->
+            val subject = backStackEntry.arguments?.getString("subject") ?: "数学"
+            val studentId = backStackEntry.arguments?.getString("studentId") ?: ""
+            
             TeachingOutlineScreen(
                 onNavigateToLearning = { id, name, g ->
                     navController.navigate(Screen.Learning.createRoute(id, name, g))
                 },
                 onBackToHome = {
-                    navController.navigate(Screen.Home.route) {
+                    navController.navigate(Screen.HomeChat.route) {
                         popUpTo(Screen.TeachingOutline.route) { inclusive = true }
                     }
                 }
@@ -128,8 +152,9 @@ fun AITeacherNavigation(
             )
         }
         
-        // 检验界面路由
+        // 检验界面路由（支持学科参数）
         composable(Screen.Testing.route) { backStackEntry ->
+            val subject = backStackEntry.arguments?.getString("subject") ?: "数学"
             val studentId = backStackEntry.arguments?.getString("studentId") ?: ""
             val studentName = backStackEntry.arguments?.getString("studentName") ?: ""
             val grade = backStackEntry.arguments?.getString("grade")?.toIntOrNull() ?: 7
@@ -147,10 +172,19 @@ fun AITeacherNavigation(
                     viewModel.submitTestingAnswer(answer)
                 },
                 onBackHome = {
-                    // 返回主页
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Home.route) { inclusive = false }
+                    // 返回对话主页
+                    navController.navigate(Screen.HomeChat.route) {
+                        popUpTo(Screen.HomeChat.route) { inclusive = false }
                     }
+                }
+            )
+        }
+        
+        // 学习统计界面（新增）
+        composable(Screen.Statistics.route) {
+            StatisticsScreen(
+                onBack = {
+                    navController.popBackStack()
                 }
             )
         }
