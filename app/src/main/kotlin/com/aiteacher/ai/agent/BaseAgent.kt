@@ -1,11 +1,13 @@
 package com.aiteacher.ai.agent
 
-import com.aiteacher.ai.service.LLMModel
-import com.aiteacher.ai.tool.BaseTool
+import com.aiteacher.ai.tool.*
+import com.aiteacher.ai.service.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.*
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
+import org.koin.core.qualifier.named
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -19,15 +21,14 @@ abstract class BaseAgent(
     val name: String,
     description: String? = null,
     protected val model: LLMModel = LLMModel("qwen-max"),
-    tools: List<BaseTool> = emptyList(),
-    memory: ContextMemory = ContextMemory(maxMemorySize = 20),
-    maxToolIterations: Int = 3
-) {
-    val description: String = description ?: "An intelligent agent named $name capable of using tools and maintaining conversation context"
-    
     // Agent可用的工具列表
-    val tools: List<BaseTool> = tools
-    protected val memory: ContextMemory = memory
+    val tools: List<BaseTool> = emptyList(),
+    memoryManagerName: String = "default",
+    maxToolIterations: Int = 3
+) : KoinComponent {
+    val description: String = description ?: "An intelligent agent named $name capable of using tools and maintaining conversation context"
+
+    protected val memoryManager: MemoryManager by inject(qualifier = named(memoryManagerName))
     protected val maxToolIterations: Int = maxOf(1, minOf(maxToolIterations, 10)) // 限制在合理范围内
     protected val running: AtomicBoolean = AtomicBoolean(false)
     
@@ -119,11 +120,7 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
      * 根据记忆构造提交给模型的 prompt
      */
     protected fun buildPrompt(n: Int? = null): List<Map<String, String>> {
-        val ctx = if (n == null) {
-            memory.getContext(memory.getMemoryCount())
-        } else {
-            memory.getContext(n)
-        }
+        val ctx = memoryManager.getMemory(n)
         return listOf(promptHead) + ctx
     }
     
@@ -144,14 +141,9 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
         
         try {
             // 添加用户输入到记忆
-            memory.addEntry(
-                MemoryEntry(
-                    id = UUID.randomUUID().toString(),
-                    content = mapOf(
-                        "role" to "user",
-                        "content" to userInput
-                    )
-                )
+            memoryManager.insertMessage(
+                role = "user",
+                content = userInput
             )
             
             // 构建提示词
@@ -169,14 +161,9 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
             // 循环解析模型输出，看是否需要工具调用
             while (iterations < maxToolIterations) {
                 // 添加助手响应到记忆
-                memory.addEntry(
-                    MemoryEntry(
-                        id = UUID.randomUUID().toString(),
-                        content = mapOf(
-                            "role" to "assistant",
-                            "content" to (modelOutput?.content ?: "")
-                        )
-                    )
+                memoryManager.insertMessage(
+                    role = "assistant",
+                    content = modelOutput?.content ?: ""
                 )
                 
                 // 解析工具调用
@@ -196,29 +183,15 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
                         // 将 Map 参数转换为 vararg 参数
                         val args = toolArguments.values.toTypedArray()
                         val result = callTool(toolName, *args)
-                        memory.addEntry(
-                            MemoryEntry(
-                                id = UUID.randomUUID().toString(),
-                                content = mapOf(
-                                    "role" to "tool",
-                                    "name" to toolName,
-                                    "status" to "success",
-                                    "content" to result.toString()
-                                )
-                            )
+                        memoryManager.insertMessage(
+                            role = "tool:$toolName",
+                            content = result.toString()
                         )
                     } catch (e: Exception) {
                         val errorMsg = e.message ?: "Unknown error"
-                        memory.addEntry(
-                            MemoryEntry(
-                                id = UUID.randomUUID().toString(),
-                                content = mapOf(
-                                    "role" to "tool",
-                                    "name" to toolName,
-                                    "status" to "error",
-                                    "content" to errorMsg
-                                )
-                            )
+                        memoryManager.insertMessage(
+                            role = "tool:$toolName",
+                            content = "error: $errorMsg"
                         )
                     }
                 }
@@ -235,14 +208,9 @@ You can use these tools when needed to accomplish tasks. Always follow these gui
             
             // 将智能体最终回复写入记忆并返回
             val finalResponse = modelOutput?.content ?: "Sorry, I couldn't generate a response."
-            memory.addEntry(
-                MemoryEntry(
-                    id = UUID.randomUUID().toString(),
-                    content = mapOf(
-                        "role" to "assistant",
-                        "content" to finalResponse
-                    )
-                )
+            memoryManager.insertMessage(
+                role = "assistant",
+                content = finalResponse
             )
             
             _state.value = AgentState.IDLE
@@ -280,62 +248,4 @@ enum class AgentState {
     IDLE,
     RUNNING,
     ERROR
-}
-
-/**
- * 记忆条目
- */
-data class MemoryEntry(
-    val id: String,
-    val content: Map<String, Any>,
-    val timestamp: Date = Date(),
-    val metadata: Map<String, Any> = emptyMap()
-)
-
-/**
- * 上下文记忆
- */
-class ContextMemory(private val maxMemorySize: Int = 100) {
-    private val memories = mutableListOf<MemoryEntry>()
-    
-    /**
-     * 添加记忆条目
-     */
-    fun addEntry(entry: MemoryEntry) {
-        memories.add(entry)
-        // 保持记忆大小在限制范围内
-        while (memories.size > maxMemorySize) {
-            memories.removeAt(0)
-        }
-    }
-    
-    /**
-     * 获取上下文
-     */
-    fun getContext(n: Int): List<Map<String, String>> {
-        val recentMemories = memories.takeLast(n)
-        return recentMemories.map { entry ->
-            mapOf(
-                "role" to (entry.content["role"] as? String ?: "user"),
-                "content" to (entry.content["content"] as? String ?: "")
-            )
-        }
-    }
-    
-    /**
-     * 获取记忆数量
-     */
-    fun getMemoryCount(): Int = memories.size
-    
-    /**
-     * 清空记忆
-     */
-    fun clear() {
-        memories.clear()
-    }
-    
-    /**
-     * 获取所有记忆
-     */
-    fun getAllMemories(): List<MemoryEntry> = memories.toList()
 }

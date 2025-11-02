@@ -17,9 +17,8 @@ data class TeachingTask(
     val resources: List<LearningResource>,
     val completed: Boolean,
     val completionDate: String?,
-    val grade: Int,
-    val maxGrade: Int,
+    val grade: Int?,
+    val maxGrade: Int?,
     val createdAt: Long,
-    val updatedAt: Long,
-    val noResponseCount: Int = 0
+    val updatedAt: Long
 )

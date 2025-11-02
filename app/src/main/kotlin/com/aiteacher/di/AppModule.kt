@@ -1,5 +1,6 @@
 package com.aiteacher.di
 
+import com.aiteacher.ai.service.MemoryManager
 import com.aiteacher.data.local.dao.*
 import com.aiteacher.data.local.repository.*
 import com.aiteacher.data.local.database.AppDatabase
@@ -13,6 +14,7 @@ import org.koin.dsl.module
 import com.aiteacher.presentation.viewmodel.MainViewModel
 import com.aiteacher.presentation.viewmodel.TeachingOutlineViewModel
 import com.aiteacher.presentation.viewmodel.LearningViewModel
+import org.koin.core.qualifier.named
 
 /**
  * Koin依赖注入模块
@@ -44,6 +46,10 @@ val appModule = module {
     
     // Agent相关 - 暂时只实现SecretaryAgent
     single { SecretaryAgent(tools = getAllBuiltinTools()) }
+
+    // 服务相关
+    single<MemoryManager> { MemoryManager() }
+    single(qualifier = named("SecretaryAgent")) { MemoryManager() }
     
     // UseCase
     factory { TeachingOutlineUseCase(get(), get()) }
