@@ -25,55 +25,14 @@ class SecretaryAgent(
     
     /**
      * 从配置文件创建 SecretaryAgent
+     * 使用BaseAgent的动态工具加载功能
      */
     constructor(toolsConfigPath: String) : this(
         model = LLMModel("qwen-max"),
-        tools = loadToolsFromConfigStatic(toolsConfigPath)
-    )
-    
-    companion object {
-        /**
-         * 静态方法：从配置文件加载工具列表
-         */
-        private fun loadToolsFromConfigStatic(configPath: String): List<BaseTool> {
-        return try {
-            val configFile = File(configPath)
-            if (!configFile.exists()) {
-                println("配置文件不存在: $configPath")
-                return emptyList()
-            }
-            
-            val configContent = configFile.readText()
-            val json = Json { ignoreUnknownKeys = true }
-            val config = json.parseToJsonElement(configContent) as JsonObject
-            
-            // 只解析工具列表
-            val toolNames = config["tools"]?.let { toolsElement ->
-                if (toolsElement is kotlinx.serialization.json.JsonArray && toolsElement.isNotEmpty()) {
-                    toolsElement.map { toolElement -> 
-                        toolElement.jsonPrimitive.content 
-                    }
-                } else {
-                    emptyList()
-                }
-            } ?: emptyList()
-            
-            // 根据工具名称获取工具实例
-            toolNames.mapNotNull { toolName ->
-                com.aiteacher.ai.tool.getToolByName(toolName)
-            }
-        } catch (e: Exception) {
-            println("解析配置文件失败: ${e.message}")
-            emptyList()
-        }
-        }
-    }
-    
-    /**
-     * 从配置文件加载工具列表
-     */
-    private fun loadToolsFromConfig(configPath: String): List<BaseTool> {
-        return loadToolsFromConfigStatic(configPath)
+        tools = emptyList()  // 初始为空，后续通过loadToolsFromConfig动态加载
+    ) {
+        // 动态加载工具
+        loadToolsFromConfig(toolsConfigPath)
     }
     
     override fun buildSystemPrompt(): String {

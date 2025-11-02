@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aiteacher.ai.service.AgentRequest
 import com.aiteacher.ai.service.LLMModel
 import kotlinx.coroutines.launch
 
@@ -99,8 +100,11 @@ fun LlmTestScreen(
                                         timestamp = System.currentTimeMillis()
                                     ))
                                     
-                                    // 调用 LLM
-                                    val result = llmModel.generateText(userMessage)
+                                    // 调用 LLM（使用AgentRequest）
+                                    val request = AgentRequest(
+                                        messages = listOf(mapOf("role" to "user", "content" to userMessage))
+                                    )
+                                    val result = llmModel.generateText(request)
                                     
                                     // 更新助手消息
                                     result?.let { output ->

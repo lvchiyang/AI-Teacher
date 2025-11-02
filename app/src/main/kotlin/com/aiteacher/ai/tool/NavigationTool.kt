@@ -12,6 +12,8 @@ class NavigationTool(
     private val getCurrentStudent: () -> Student?,
     private val navigateTo: (route: String) -> Unit
 ) : BaseTool(
+    // 工具的实际 JSON Schema 结构定义（可直接用于 DashScope API）
+    // 通过 toToolSpec() 方法可以直接获取这个结构
     toolName = "navigate_to_screen",
     toolDescription = """
         导航到指定界面。根据用户意图智能跳转到对应功能界面。

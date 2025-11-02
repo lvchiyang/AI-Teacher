@@ -139,18 +139,32 @@ class MainViewModel(
     
     /**
      * 初始化 HomeAgent（需要在 UI 层设置导航回调后调用）
+     * 使用配置文件方式加载工具
      */
     fun initializeAgent(navigateCallback: (String) -> Unit) {
         navigateTo = navigateCallback
         
-        // 创建 NavigationTool（即使学生信息暂时为 null，也先创建工具）
-        val navTool = NavigationTool(
-            getCurrentStudent = { _currentStudent.value },
-            navigateTo = navigateCallback
-        )
+        // 工具工厂函数：用于创建需要依赖的工具（如 NavigationTool）
+        val toolFactory: (String) -> com.aiteacher.ai.tool.BaseTool? = { toolName ->
+            when (toolName) {
+                "navigate_to_screen" -> NavigationTool(
+                    getCurrentStudent = { _currentStudent.value },
+                    navigateTo = navigateCallback
+                )
+                else -> null
+            }
+        }
         
-        // 创建 HomeAgent
-        homeAgent = HomeAgent(tools = listOf(navTool))
+        // 配置文件路径（相对于项目根目录或使用绝对路径）
+        // 注意：在实际运行时，需要使用正确的文件路径
+        // 这里使用相对路径，实际项目中可能需要从assets或files目录读取
+        val configPath = "app/src/main/kotlin/com/aiteacher/ai/agent/configs/home_tools.json"
+        
+        // 从配置文件创建 HomeAgent（支持依赖注入的工具）
+        homeAgent = HomeAgent(
+            toolsConfigPath = configPath,
+            toolFactory = toolFactory
+        )
         
         // 如果学生信息还未加载，在 viewModelScope 中等待
         val currentStudent = _currentStudent.value
@@ -242,11 +256,21 @@ class MainViewModel(
         homeAgent?.let {
             // 重新初始化 Agent 以清空记忆
             navigateTo?.let { callback ->
-                val navTool = NavigationTool(
-                    getCurrentStudent = { _currentStudent.value },
-                    navigateTo = callback
+                // 使用配置文件方式重新创建 Agent
+                val toolFactory: (String) -> com.aiteacher.ai.tool.BaseTool? = { toolName ->
+                    when (toolName) {
+                        "navigate_to_screen" -> NavigationTool(
+                            getCurrentStudent = { _currentStudent.value },
+                            navigateTo = callback
+                        )
+                        else -> null
+                    }
+                }
+                val configPath = "app/src/main/kotlin/com/aiteacher/ai/agent/configs/home_tools.json"
+                homeAgent = HomeAgent(
+                    toolsConfigPath = configPath,
+                    toolFactory = toolFactory
                 )
-                homeAgent = HomeAgent(tools = listOf(navTool))
             }
         }
         

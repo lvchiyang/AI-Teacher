@@ -1,5 +1,6 @@
 package com.aiteacher.ai.agent
 
+import com.aiteacher.ai.service.AgentRequest
 import com.aiteacher.ai.service.LLMModel
 import com.aiteacher.ai.service.LLMOutput
 import com.aiteacher.ai.tool.BaseTool
@@ -7,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.*
+import java.io.File
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -27,8 +29,8 @@ abstract class BaseAgent(
 ) {
     val description: String = description ?: "An intelligent agent named $name capable of using tools and maintaining conversation context"
     
-    // Agent可用的工具列表
-    val tools: List<BaseTool> = tools
+    // Agent可用的工具列表（保存在Agent中，不在Model中，支持动态添加）
+    protected val tools: MutableList<BaseTool> = tools.toMutableList()
     protected val memory: ContextMemory = memory
     protected val maxToolIterations: Int = maxOf(1, minOf(maxToolIterations, 10)) // 限制在合理范围内
     protected val running: AtomicBoolean = AtomicBoolean(false)
@@ -37,87 +39,9 @@ abstract class BaseAgent(
     private val _state = MutableStateFlow(AgentState.IDLE)
     val state: StateFlow<AgentState> = _state.asStateFlow()
     
-    init {
-        // 将工具规格添加到模型中
-        tools.forEach { tool ->
-            model.addTool(tool.toToolSpec())
-        }
-    }
-    
-    // 系统提示头 - 根据是否有工具动态生成
+    // 系统提示头 - 简化版本，DashScope API 会自动处理工具调用
     protected val promptHead: Map<String, String> by lazy {
-        val content = if (tools.isNotEmpty()) {
-            buildString {
-                // 基础角色描述
-                appendLine("You are $name, an intelligent assistant with access to various tools.")
-                
-                // 详细工具列表（包含参数说明）
-                appendLine("\n【可用工具列表】")
-                tools.forEachIndexed { index, tool ->
-                    appendLine("\n工具 ${index + 1}: ${tool.toolName}")
-                    appendLine("描述：${tool.toolDescription}")
-                    
-                    // 提取参数信息
-                    val params = tool.parameters
-                    val properties = (params["properties"] as? Map<*, *>) ?: emptyMap<String, Any>()
-                    val required = (params["required"] as? List<*>) ?: emptyList<String>()
-                    
-                    if (properties.isNotEmpty()) {
-                        appendLine("参数说明：")
-                        @Suppress("UNCHECKED_CAST")
-                        (properties as Map<String, Any>).forEach { (paramName, paramInfo) ->
-                            @Suppress("UNCHECKED_CAST")
-                            val paramMap = (paramInfo as? Map<String, Any>) ?: emptyMap<String, Any>()
-                            val paramType = paramMap["type"] as? String ?: "string"
-                            val paramDesc = paramMap["description"] as? String ?: ""
-                            val enumValues = paramMap["enum"] as? List<*>
-                            
-                            val requiredMark = if (required.contains(paramName)) "【必需】" else "【可选】"
-                            append("  - $paramName ($paramType) $requiredMark: $paramDesc")
-                            
-                            if (enumValues != null && enumValues.isNotEmpty()) {
-                                append(" 可选值: ${enumValues.joinToString(", ")}")
-                            }
-                            appendLine()
-                        }
-                        
-                        if (required.isNotEmpty()) {
-                            appendLine("必需参数: ${required.joinToString(", ")}")
-                        }
-                    } else {
-                        appendLine("该工具无需额外参数")
-                    }
-                }
-                
-                // 工具调用格式约定
-                appendLine("\n【工具调用格式】")
-                appendLine("当需要使用工具时，请严格按照以下格式回复（必须是有效的JSON）：")
-                appendLine("```json")
-                appendLine("{")
-                appendLine("  \"tool_call\": {")
-                appendLine("    \"name\": \"工具名称\",")
-                appendLine("    \"arguments\": {")
-                appendLine("      \"参数名\": \"参数值\"")
-                appendLine("    }")
-                appendLine("  }")
-                appendLine("}")
-                appendLine("```")
-                appendLine("\n重要提示：")
-                appendLine("1. 必须使用上述JSON格式，不要添加其他文本")
-                appendLine("2. 工具名称必须与可用工具列表中的名称完全一致")
-                appendLine("3. 参数必须符合工具定义的参数要求")
-                appendLine("4. 必需参数必须提供，可选参数可以省略")
-                appendLine("5. 如果不需要调用工具，直接回复普通文本即可")
-                
-                appendLine("\n【使用指南】")
-                appendLine("1. Use tools only when necessary")
-                appendLine("2. When using a tool, provide clear and complete parameters")
-                appendLine("3. After receiving tool results, incorporate them into your response appropriately")
-                appendLine("4. If a task cannot be completed, explain why clearly")
-            }
-        } else {
-            buildSystemPrompt()
-        }
+        val content = buildSystemPrompt()
         mapOf(
             "role" to "system",
             "content" to content
@@ -130,26 +54,96 @@ abstract class BaseAgent(
     abstract fun buildSystemPrompt(): String
     
     /**
-     * 添加工具
+     * 动态添加工具
+     * 将工具添加到Agent的工具列表中，工具规格会自动在下次调用模型时传递给LLM
      */
     fun addTool(tool: BaseTool) {
-        // 注意：这里只是添加到当前实例，不会持久化
-        // 如果需要持久化，应该通过配置文件重新创建 Agent
-        model.addTool(tool.toToolSpec())
+        if (tools.none { it.toolName == tool.toolName }) {
+            tools.add(tool)
+            android.util.Log.d("BaseAgent", "已添加工具: ${tool.toolName}")
+        } else {
+            android.util.Log.w("BaseAgent", "工具 ${tool.toolName} 已存在，跳过添加")
+        }
     }
     
     /**
-     * 获取工具
+     * 从配置文件动态加载工具
+     * 
+     * 【配置文件格式】
+     * JSON格式：{"tools": ["tool_name1", "tool_name2", ...]}
+     * 
+     * 【重要说明】
+     * 1. 配置文件中的工具名必须是工具类的 `toolName` 参数值（不是文件名或类名）
+     *    示例：MathTool 的 toolName = "math_calculator"，配置文件中应写 "math_calculator"
+     * 
+     * 2. 工具加载顺序：
+     *    - 首先尝试通过 getToolByName() 创建无依赖的工具
+     *    - 如果失败，尝试通过 toolFactory 创建需要依赖的工具
+     * 
+     * 3. 工具名称必须在 Tools.kt 的 getToolByName() 或 toolFactory 中注册才能使用
+     * 
+     * @param configPath 配置文件路径
+     * @param toolFactory 工具工厂函数，用于创建需要依赖的工具（toolName -> BaseTool?）
+     * @return 成功加载的工具数量
      */
-    fun getTool(toolName: String): BaseTool? {
-        return tools.find { it.toolName == toolName }
+    fun loadToolsFromConfig(
+        configPath: String,
+        toolFactory: ((String) -> BaseTool?)? = null
+    ): Int {
+        return try {
+            val configFile = java.io.File(configPath)
+            if (!configFile.exists()) {
+                android.util.Log.w("BaseAgent", "配置文件不存在: $configPath")
+                return 0
+            }
+            
+            val configContent = configFile.readText()
+            val json = Json { ignoreUnknownKeys = true }
+            val config = json.parseToJsonElement(configContent) as JsonObject
+            
+            // 解析工具列表
+            val toolNames = config["tools"]?.let { toolsElement ->
+                if (toolsElement is kotlinx.serialization.json.JsonArray && toolsElement.isNotEmpty()) {
+                    toolsElement.map { toolElement -> 
+                        toolElement.jsonPrimitive.content 
+                    }
+                } else {
+                    emptyList()
+                }
+            } ?: emptyList()
+            
+            // 根据工具名称获取工具实例并添加到Agent
+            var loadedCount = 0
+            toolNames.forEach { toolName ->
+                // 首先尝试通过 getToolByName 创建无依赖的工具
+                var tool = com.aiteacher.ai.tool.getToolByName(toolName)
+                
+                // 如果失败且提供了工具工厂，尝试通过工厂创建
+                if (tool == null && toolFactory != null) {
+                    tool = toolFactory(toolName)
+                }
+                
+                if (tool != null) {
+                    addTool(tool)
+                    loadedCount++
+                } else {
+                    android.util.Log.w("BaseAgent", "未找到工具: $toolName")
+                }
+            }
+            
+            android.util.Log.d("BaseAgent", "从配置文件加载了 $loadedCount 个工具")
+            loadedCount
+        } catch (e: Exception) {
+            android.util.Log.e("BaseAgent", "解析配置文件失败: ${e.message}", e)
+            0
+        }
     }
     
     /**
      * 调用工具
      */
     suspend fun callTool(toolName: String, vararg args: Any): com.aiteacher.ai.tool.ToolResult? {
-        val tool = getTool(toolName)
+        val tool = tools.find { it.toolName == toolName }
         return if (tool != null) {
             try {
                 val result = tool.toolFunction(*args)
@@ -166,28 +160,25 @@ abstract class BaseAgent(
     }
     
     /**
-     * 检查工具是否可用
-     */
-    fun isToolAvailable(toolName: String): Boolean {
-        return tools.any { it.toolName == toolName }
-    }
-    
-    /**
-     * 检查是否运行在无工具模式
-     */
-    fun isNoToolsMode(): Boolean {
-        return tools.isEmpty()
-    }
-    
-    /**
      * 根据记忆构造提交给模型的 prompt
      */
     protected fun buildPrompt(n: Int? = null): List<Map<String, String>> {
-        val ctx = if (n == null) {
-            memory.getContext(memory.getMemoryCount())
-        } else {
-            memory.getContext(n)
+        // 获取所有记忆并确定要使用的记忆数量
+        val allMemories = memory.getAllMemories()
+        val memoryCount = if (n == null) allMemories.size else n
+        
+        // 取最近的 memoryCount 条记忆
+        val recentMemories = allMemories.takeLast(memoryCount)
+        
+        // 将记忆转换为消息格式
+        val ctx = recentMemories.map { entry ->
+            mapOf(
+                "role" to (entry.content["role"] as? String ?: "user"),
+                "content" to (entry.content["content"] as? String ?: "")
+            )
         }
+        
+        // 返回系统提示词 + 上下文
         return listOf(promptHead) + ctx
     }
     
@@ -212,7 +203,14 @@ abstract class BaseAgent(
     suspend fun runOnce(): RunOnceResult {
         // 构建提示词并调用模型
         val prompt = buildPrompt()
-        val llmOutput = model.generateTextWithTools(prompt)
+        
+        // 构建AgentRequest，只传入必需参数，其他使用LLMModel的默认值
+        val request = AgentRequest(
+            messages = prompt,
+            tools = tools.map { it.toToolSpec() }
+        )
+        
+        val llmOutput = model.generateText(request)
         
         if (llmOutput == null) {
             return RunOnceResult(
@@ -234,10 +232,10 @@ abstract class BaseAgent(
             )
         )
         
-        // 解析工具调用
-        val toolCalls = parseToolCall(llmOutput)
+        // 直接从 LLM 输出中获取工具调用（如果 LLM 支持工具调用，会直接返回）
+        val toolCalls = llmOutput.toolCalls
         
-        if (toolCalls.isNullOrEmpty()) {
+        if (toolCalls.isEmpty()) {
             // 没有工具调用，LLM 可能给出了最终回复，但需要由 runReAct 中的 LLM 判断是否完成任务
             return RunOnceResult(
                 llmOutput = llmOutput,
@@ -254,6 +252,11 @@ abstract class BaseAgent(
         
         for (call in toolCalls) {
             val toolName = call["name"] as? String ?: ""
+            if (toolName.isBlank()) {
+                android.util.Log.w("BaseAgent", "工具调用缺少 name 字段: $call")
+                continue
+            }
+            
             val toolArguments = (call["arguments"] as? Map<*, *>)?.let { 
                 @Suppress("UNCHECKED_CAST")
                 it as Map<String, Any>
@@ -456,124 +459,6 @@ abstract class BaseAgent(
         _state.value = AgentState.IDLE
     }
     
-    /**
-     * 解析工具调用
-     * 从 LLM 输出中提取工具调用信息
-     * 支持格式：
-     * 1. JSON 代码块格式：```json { "tool_call": { "name": "...", "arguments": {...} } } ```
-     * 2. 纯 JSON 格式：{ "tool_call": { "name": "...", "arguments": {...} } }
-     */
-    protected fun parseToolCall(output: LLMOutput?): List<Map<String, Any>>? {
-        if (output == null) return null
-        
-        try {
-            val content = output.content.trim()
-            if (content.isEmpty()) return emptyList()
-            
-            val json = Json { 
-                ignoreUnknownKeys = true
-                isLenient = true  // 允许宽松解析
-            }
-            
-            var jsonContent: String? = null
-            
-            // 尝试1：查找 JSON 代码块
-            if (content.contains("```json")) {
-                val jsonStart = content.indexOf("```json") + 7
-                val jsonEnd = content.indexOf("```", jsonStart)
-                if (jsonStart > 6 && jsonEnd > jsonStart) {
-                    jsonContent = content.substring(jsonStart, jsonEnd).trim()
-                }
-            }
-            // 尝试2：查找第一个 { 到最后一个 } 之间的内容（纯 JSON）
-            else if (content.startsWith("{") && content.contains("tool_call")) {
-                val jsonStart = content.indexOf('{')
-                val jsonEnd = content.lastIndexOf('}') + 1
-                if (jsonStart >= 0 && jsonEnd > jsonStart) {
-                    jsonContent = content.substring(jsonStart, jsonEnd)
-                }
-            }
-            
-            // 如果没有找到工具调用格式，返回空列表（表示普通回复）
-            if (jsonContent == null) {
-                return emptyList()
-            }
-            
-            // 解析 JSON
-            val jsonElement = json.parseToJsonElement(jsonContent)
-            val jsonObject = jsonElement.jsonObject
-            
-            // 提取 tool_call
-            val toolCallElement = jsonObject["tool_call"] ?: jsonObject["toolCall"]
-            if (toolCallElement == null) {
-                // 可能格式不同，尝试直接解析为 tool_call
-                val toolCallDirect = jsonObject.get("name")?.let { name ->
-                    val arguments = jsonObject["arguments"] ?: JsonObject(emptyMap())
-                    mapOf(
-                        "name" to name.jsonPrimitive.content,
-                        "arguments" to arguments
-                    )
-                }
-                if (toolCallDirect != null) {
-                    return listOf(toolCallDirect)
-                }
-                return emptyList()
-            }
-            
-            val toolCallObject = toolCallElement.jsonObject
-            val toolName = toolCallObject["name"]?.jsonPrimitive?.content
-            val argumentsElement = toolCallObject["arguments"]
-            
-            if (toolName.isNullOrBlank()) {
-                return emptyList()
-            }
-            
-            // 此时 toolName 一定非空（经过 isNullOrBlank 检查后）
-            val finalToolName = toolName
-            
-            // 解析 arguments
-            val argumentsMap = mutableMapOf<String, Any>()
-            if (argumentsElement is JsonObject) {
-                argumentsElement.forEach { (key, value) ->
-                    argumentsMap[key] = when {
-                        value is JsonPrimitive -> {
-                            // 尝试解析为不同类型
-                            when {
-                                value.isString -> value.content
-                                value.booleanOrNull != null -> value.boolean
-                                value.doubleOrNull != null -> value.double
-                                value.longOrNull != null -> value.long
-                                else -> value.content
-                            }
-                        }
-                        value is JsonArray -> {
-                            value.map { element ->
-                                if (element is JsonPrimitive) element.content else element.toString()
-                            }
-                        }
-                        value is JsonObject -> {
-                            // 递归处理嵌套对象
-                            value.entries.associate { (k, v) ->
-                                k to (if (v is JsonPrimitive) v.content else v.toString())
-                            }
-                        }
-                        else -> value.toString()
-                    }
-                }
-            }
-            
-            return listOf(
-                mapOf(
-                    "name" to finalToolName,
-                    "arguments" to argumentsMap
-                )
-            )
-            
-        } catch (e: Exception) {
-            android.util.Log.w("BaseAgent", "解析工具调用失败: ${e.message}\n内容: ${output.content}")
-            return emptyList()  // 解析失败时返回空列表，当作普通回复处理
-        }
-    }
 }
 
 /**
@@ -626,9 +511,9 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
     }
     
     /**
-     * 获取记忆数量
+     * 获取所有记忆（用于buildPrompt）
      */
-    fun getMemoryCount(): Int = memories.size
+    fun getAllMemories(): List<MemoryEntry> = memories.toList()
     
     /**
      * 清空记忆
@@ -636,9 +521,4 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
     fun clear() {
         memories.clear()
     }
-    
-    /**
-     * 获取所有记忆
-     */
-    fun getAllMemories(): List<MemoryEntry> = memories.toList()
 }
