@@ -10,6 +10,7 @@ data class Student(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     var currentTaskId: String? = null,
+    var currentChapter: String? = null,  // 当前学习章节
     var learningProgress: LearningProgress? = null
 
 )

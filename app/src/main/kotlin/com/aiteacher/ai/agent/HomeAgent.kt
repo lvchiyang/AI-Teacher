@@ -10,14 +10,15 @@ import com.aiteacher.ai.tool.BaseTool
 class HomeAgent(
     tools: List<BaseTool>,
     model: LLMModel = LLMModel("qwen-max"),
-    memory: ContextMemory = ContextMemory(maxMemorySize = 20)
+    memoryManagerName: String = "HomeAgent",
+    maxToolIterations: Int = 3
 ) : BaseAgent(
     name = "HomeAgent",
     description = "主页导航智能体，负责理解用户意图并导航到相应界面",
     model = model,
     tools = tools,
-    memory = memory,
-    maxToolIterations = 3
+    memoryManagerName = memoryManagerName,
+    maxToolIterations = maxToolIterations
 ) {
     
     /**
@@ -27,17 +28,17 @@ class HomeAgent(
      * @param toolsConfigPath 工具配置文件路径，JSON格式：{"tools": ["tool_name1", ...]}
      * @param toolFactory 工具工厂函数，用于创建需要依赖的工具（如 NavigationTool）
      * @param model LLM模型实例
-     * @param memory 上下文记忆
+     * @param memoryManagerName 记忆管理器名称，默认为 "HomeAgent"
      */
     constructor(
         toolsConfigPath: String,
         toolFactory: (String) -> BaseTool?,
         model: LLMModel = LLMModel("qwen-max"),
-        memory: ContextMemory = ContextMemory(maxMemorySize = 20)
+        memoryManagerName: String = "HomeAgent"
     ) : this(
         tools = emptyList(),  // 初始为空，后续通过loadToolsFromConfig动态加载
         model = model,
-        memory = memory
+        memoryManagerName = memoryManagerName
     ) {
         // 动态加载工具（包括需要依赖的工具）
         loadToolsFromConfig(toolsConfigPath, toolFactory)

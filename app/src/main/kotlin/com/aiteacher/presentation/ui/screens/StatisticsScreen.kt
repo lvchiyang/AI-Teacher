@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.sp
 /**
  * 学习统计界面
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(
     onBack: () -> Unit

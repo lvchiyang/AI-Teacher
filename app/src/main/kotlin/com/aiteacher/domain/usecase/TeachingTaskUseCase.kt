@@ -36,7 +36,6 @@ class TeachingTaskUseCase {
                 maxGrade = 0,
                 createdAt = System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis(),
-                noResponseCount = 0
             )
             
             Result.success(task)
@@ -70,7 +69,6 @@ class TeachingTaskUseCase {
                 maxGrade = 0,
                 createdAt = System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis(),
-                noResponseCount = 0
             )
             
             Result.success(task)

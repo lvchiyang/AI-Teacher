@@ -270,7 +270,7 @@ abstract class BaseAgent(
 
                         memoryManager.insertMessage(
                             role = "tool:$toolName",
-                            content = if(result.success) "success" else "error" + result.message
+                            content = if(result.success) "success: ${result.message}" else "error: ${result.message}"
                         )
                     }
 

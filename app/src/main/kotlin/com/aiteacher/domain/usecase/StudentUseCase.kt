@@ -69,6 +69,8 @@ class StudentUseCase(private val studentRepository: StudentRepository) {
                 ?: return Result.failure(Exception("学生不存在"))
             
             val currentProgress = student.learningProgress
+                ?: return Result.failure(Exception("学习进度不存在"))
+            
             val updatedProgress = when (newStatus) {
                 MasteryStatus.TAUGHT_TO_REVIEW -> {
                     // 从未讲解移动到已讲解待复习

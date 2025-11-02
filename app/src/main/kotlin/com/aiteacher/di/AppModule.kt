@@ -47,9 +47,13 @@ val appModule = module {
     // Agent相关 - 暂时只实现SecretaryAgent
     single { SecretaryAgent(tools = getAllBuiltinTools()) }
 
-    // 服务相关
-    single<MemoryManager> { MemoryManager() }
+    // 服务相关 - MemoryManager 配置
+    // 默认的 MemoryManager
+    single(qualifier = named("default")) { MemoryManager() }
+    // SecretaryAgent 专用的 MemoryManager
     single(qualifier = named("SecretaryAgent")) { MemoryManager() }
+    // HomeAgent 专用的 MemoryManager
+    single(qualifier = named("HomeAgent")) { MemoryManager() }
     
     // UseCase
     factory { TeachingOutlineUseCase(get(), get()) }

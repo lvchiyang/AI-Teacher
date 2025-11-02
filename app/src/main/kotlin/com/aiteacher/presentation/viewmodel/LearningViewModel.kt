@@ -38,7 +38,6 @@ class LearningViewModel : ViewModel() {
         maxGrade = 0,
         createdAt = System.currentTimeMillis(),
         updatedAt = System.currentTimeMillis(),
-        noResponseCount = 0
     )
     
     // 当前检验任务（示例数据）
