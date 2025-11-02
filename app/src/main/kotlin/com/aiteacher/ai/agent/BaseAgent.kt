@@ -220,14 +220,9 @@ abstract class BaseAgent(
         }
 
         // 添加助手响应到记忆
-        memory.addEntry(
-            MemoryEntry(
-                id = UUID.randomUUID().toString(),
-                content = mapOf(
-                    "role" to "assistant",
-                    "content" to llmOutput.content
-                )
-            )
+        memoryManager.insertMessage(
+            role = "assistant",
+            content = llmOutput.content
         )
 
         // 解析工具调用
@@ -263,16 +258,9 @@ abstract class BaseAgent(
                 when (result) {
                     is com.aiteacher.ai.tool.ToolResult.QueryResult -> {
                         // 查询类结果：反馈给 LLM，继续思考
-                        memory.addEntry(
-                            MemoryEntry(
-                                id = UUID.randomUUID().toString(),
-                                content = mapOf(
-                                    "role" to "tool",
-                                    "name" to toolName,
-                                    "status" to "success",
-                                    "content" to result.data.toString()
-                                )
-                            )
+                        memoryManager.insertMessage(
+                            role = "tool:$toolName",
+                            content = result.data.toString()
                         )
                     }
 
@@ -285,45 +273,24 @@ abstract class BaseAgent(
                             hasFailedExecuteTool = true
                         }
 
-                        memory.addEntry(
-                            MemoryEntry(
-                                id = UUID.randomUUID().toString(),
-                                content = mapOf(
-                                    "role" to "tool",
-                                    "name" to toolName,
-                                    "status" to if (result.success) "success" else "error",
-                                    "content" to result.message
-                                )
-                            )
+                        memoryManager.insertMessage(
+                            role = "tool:$toolName",
+                            content = if(result.success) "success" else "error" + result.message
                         )
                     }
 
                     null -> {
-                        memory.addEntry(
-                            MemoryEntry(
-                                id = UUID.randomUUID().toString(),
-                                content = mapOf(
-                                    "role" to "tool",
-                                    "name" to toolName,
-                                    "status" to "error",
-                                    "content" to "Tool result is null"
-                                )
-                            )
+                        memoryManager.insertMessage(
+                            role = "tool:$toolName",
+                            content = "Tool result is null"
                         )
                     }
                 }
             } catch (e: Exception) {
                 val errorMsg = e.message ?: "Unknown error"
-                memory.addEntry(
-                    MemoryEntry(
-                        id = UUID.randomUUID().toString(),
-                        content = mapOf(
-                            "role" to "tool",
-                            "name" to toolName,
-                            "status" to "error",
-                            "content" to errorMsg
-                        )
-                    )
+                memoryManager.insertMessage(
+                    role = "tool:$toolName",
+                    content = "Error: $errorMsg"
                 )
             }
         }
@@ -364,14 +331,9 @@ abstract class BaseAgent(
 
         try {
             // 添加用户输入到记忆
-            memory.addEntry(
-                MemoryEntry(
-                    id = UUID.randomUUID().toString(),
-                    content = mapOf(
-                        "role" to "user",
-                        "content" to userInput
-                    )
-                )
+            memoryManager.insertMessage(
+                role = "user",
+                content = userInput
             )
 
             var iterations = 0
