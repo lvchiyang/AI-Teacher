@@ -45,7 +45,11 @@ package com.aiteacher.ai.tool
 fun getAllBuiltinTools(): List<BaseTool> {
     return listOf(
         MathTool(),
-        TimeTool()
+        TimeTool(),
+        KnowledgeBaseTool(),
+        FinishTool(),
+        QuestionRetrievalTool(),
+        GradingTool()
     )
 }
 

@@ -3,8 +3,9 @@ package com.aiteacher.di
 import com.aiteacher.ai.service.MemoryManager
 import com.aiteacher.data.local.dao.*
 import com.aiteacher.data.local.repository.*
+import com.aiteacher.domain.usecase.*
 import com.aiteacher.data.local.database.AppDatabase
-import com.aiteacher.ai.agent.SecretaryAgent
+import com.aiteacher.ai.agent.*
 import com.aiteacher.ai.tool.getAllBuiltinTools
 import com.aiteacher.domain.usecase.TeachingOutlineUseCase
 import com.aiteacher.domain.usecase.StudentUseCase
@@ -46,6 +47,8 @@ val appModule = module {
     
     // Agent相关 - 暂时只实现SecretaryAgent
     single { SecretaryAgent(tools = getAllBuiltinTools()) }
+    single { TestingAgent("configs/testing_agent_config.json") }
+    single { TeacherAgent("configs/teacher_agent_config.json") }
 
     // 服务相关 - MemoryManager 配置
     // 默认的 MemoryManager
@@ -58,6 +61,10 @@ val appModule = module {
     // UseCase
     factory { TeachingOutlineUseCase(get(), get()) }
     factory { StudentUseCase(get()) }
+    single { CreateTestingTaskWithAgentUseCase(get(),get(),get()) }
+    single { GradeTestingTaskUseCase(get(),get()) }
+    single { GetTestingTaskUseCase() }
+    single { GenerateTeachingContentUseCase() }
     
     // ViewModel - 使用single让MainViewModel全局共享
     single { MainViewModel(get()) }  // 改为single，让所有界面共享同一个实例（包含对话功能）
