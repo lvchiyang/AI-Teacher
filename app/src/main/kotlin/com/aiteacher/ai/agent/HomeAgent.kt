@@ -42,6 +42,8 @@ class HomeAgent(
     ) {
         // 动态加载工具（包括需要依赖的工具）
         loadToolsFromConfig(toolsConfigPath, toolFactory)
+        // 打印工具规格（已在 loadToolsFromConfig 中调用，这里确保打印）
+        // printToolsSpecs()
     }
     
     override fun buildSystemPrompt(): String {

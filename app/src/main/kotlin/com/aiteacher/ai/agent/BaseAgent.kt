@@ -13,6 +13,9 @@ import java.io.File
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.koin.core.qualifier.named
+import org.koin.android.ext.koin.androidContext
+import org.koin.core.parameter.parametersOf
+import android.content.Context
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -43,7 +46,7 @@ abstract class BaseAgent(
     val state: StateFlow<AgentState> = _state.asStateFlow()
     
     // 系统提示头 - 简化版本，DashScope API 会自动处理工具调用
-    protected val promptHead: Map<String, String> by lazy {
+    protected val promptHead: Map<String, Any> by lazy {
         val content = buildSystemPrompt()
         mapOf(
             "role" to "system",
@@ -85,7 +88,11 @@ abstract class BaseAgent(
      * 
      * 3. 工具名称必须在 Tools.kt 的 getToolByName() 或 toolFactory 中注册才能使用
      * 
-     * @param configPath 配置文件路径
+     * 4. 配置文件路径：
+     *    - 如果是 assets 路径（如 "home_tools.json"），会从 assets 目录读取
+     *    - 如果是文件系统路径（如 "app/src/.../file.json"），会尝试从文件系统读取
+     * 
+     * @param configPath 配置文件路径（assets 路径或文件系统路径）
      * @param toolFactory 工具工厂函数，用于创建需要依赖的工具（toolName -> BaseTool?）
      * @return 成功加载的工具数量
      */
@@ -94,13 +101,11 @@ abstract class BaseAgent(
         toolFactory: ((String) -> BaseTool?)? = null
     ): Int {
         return try {
-            val configFile = java.io.File(configPath)
-            if (!configFile.exists()) {
-                android.util.Log.w("BaseAgent", "配置文件不存在: $configPath")
+            val configContent = readConfigFile(configPath)
+            if (configContent == null) {
+                android.util.Log.w("BaseAgent", "无法读取配置文件: $configPath")
                 return 0
             }
-            
-            val configContent = configFile.readText()
             val json = Json { ignoreUnknownKeys = true }
             val config = json.parseToJsonElement(configContent) as JsonObject
             
@@ -118,23 +123,34 @@ abstract class BaseAgent(
             // 根据工具名称获取工具实例并添加到Agent
             var loadedCount = 0
             toolNames.forEach { toolName ->
+                // 清理工具名称（移除空格）
+                val cleanToolName = toolName.trim()
+                if (cleanToolName.isBlank()) {
+                    android.util.Log.w("BaseAgent", "跳过空工具名")
+                    return@forEach
+                }
+                
                 // 首先尝试通过 getToolByName 创建无依赖的工具
-                var tool = com.aiteacher.ai.tool.getToolByName(toolName)
+                var tool = com.aiteacher.ai.tool.getToolByName(cleanToolName)
                 
                 // 如果失败且提供了工具工厂，尝试通过工厂创建
                 if (tool == null && toolFactory != null) {
-                    tool = toolFactory(toolName)
+                    tool = toolFactory(cleanToolName)
                 }
                 
                 if (tool != null) {
                     addTool(tool)
                     loadedCount++
                 } else {
-                    android.util.Log.w("BaseAgent", "未找到工具: $toolName")
+                    android.util.Log.w("BaseAgent", "未找到工具: $cleanToolName")
                 }
             }
             
             android.util.Log.d("BaseAgent", "从配置文件加载了 $loadedCount 个工具")
+            
+            // 打印加载的工具规格
+            printToolsSpecs()
+            
             loadedCount
         } catch (e: Exception) {
             android.util.Log.e("BaseAgent", "解析配置文件失败: ${e.message}", e)
@@ -165,8 +181,8 @@ abstract class BaseAgent(
     /**
      * 根据记忆构造提交给模型的 prompt
      */
-    protected fun buildPrompt(n: Int? = null): List<Map<String, String>> {
-        val ctx: List<Map<String, String>> = memoryManager.getMemory(n)
+    protected fun buildPrompt(n: Int? = null): List<Map<String, Any>> {
+        val ctx: List<Map<String, Any>> = memoryManager.getMemory(n)
         return listOf(promptHead) + ctx
     }
     
@@ -192,10 +208,16 @@ abstract class BaseAgent(
         // 构建提示词并调用模型
         val prompt = buildPrompt()
         
+        // 将工具转换为工具规格
+        val toolSpecs = tools.map { it.toToolSpec() }
+        
+        // 打印工具规格（用于调试）
+        // printToolsSpecsForRequest(toolSpecs)
+        
         // 构建AgentRequest，只传入必需参数，其他使用LLMModel的默认值
         val request = AgentRequest(
             messages = prompt,
-            tools = tools.map { it.toToolSpec() }
+            tools = toolSpecs
         )
         
         val llmOutput = model.generateText(request)
@@ -209,14 +231,72 @@ abstract class BaseAgent(
             )
         }
 
-        // 添加助手响应到记忆
-        memoryManager.insertMessage(
-            role = "assistant",
-            content = llmOutput.content
-        )
-        
         // 直接从 LLM 输出中获取工具调用（如果 LLM 支持工具调用，会直接返回）
         val toolCalls = llmOutput.toolCalls
+        
+        // 如果有工具调用，需要在 assistant 消息中保存 tool_calls 信息
+        // 这样才能让后续的 tool 消息正确关联
+        if (toolCalls.isNotEmpty()) {
+            // 将 toolCalls 转换为符合 API 格式的 JSON 字符串
+            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            
+            // 直接构建 JSON 数组，避免中间类型推断问题
+            val toolCallsJsonElement = kotlinx.serialization.json.buildJsonArray {
+                toolCalls.forEach { call ->
+                    val callId = call["id"] as? String ?: ""
+                    val callName = call["name"] as? String ?: ""
+                    val callArgs = call["arguments"] as? Map<*, *>
+                    
+                    // 将 arguments Map 转换为 JSON 字符串
+                    val argumentsStr = callArgs?.let { args ->
+                        @Suppress("UNCHECKED_CAST")
+                        val argsMap = args as Map<String, Any>
+                        val argsJsonObj = kotlinx.serialization.json.buildJsonObject {
+                            argsMap.forEach { (key: String, value: Any) ->
+                                put(key, when (value) {
+                                    is String -> kotlinx.serialization.json.JsonPrimitive(value)
+                                    is Number -> kotlinx.serialization.json.JsonPrimitive(value)
+                                    is Boolean -> kotlinx.serialization.json.JsonPrimitive(value)
+                                    else -> kotlinx.serialization.json.JsonPrimitive(value.toString())
+                                })
+                            }
+                        }
+                        json.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), argsJsonObj)
+                    } ?: "{}"
+                    
+                    // 构建 tool_call 对象
+                    add(kotlinx.serialization.json.buildJsonObject {
+                        put("id", callId)
+                        put("type", "function")
+                        put("function", kotlinx.serialization.json.buildJsonObject {
+                            put("name", callName)
+                            put("arguments", argumentsStr)
+                        })
+                    })
+                }
+            }
+            
+            val toolCallsJson = json.encodeToString(
+                kotlinx.serialization.json.JsonArray.serializer(),
+                toolCallsJsonElement
+            )
+            
+            val assistantMetadata = mapOf(
+                "tool_calls_json" to toolCallsJson
+            )
+            
+            memoryManager.insertMessage(
+                role = "assistant",
+                content = llmOutput.content,
+                metadata = assistantMetadata
+            )
+        } else {
+            // 没有工具调用，正常保存
+            memoryManager.insertMessage(
+                role = "assistant",
+                content = llmOutput.content
+            )
+        }
         
         if (toolCalls.isEmpty()) {
             // 没有工具调用，LLM 可能给出了最终回复，但需要由 runReAct 中的 LLM 判断是否完成任务
@@ -235,8 +315,13 @@ abstract class BaseAgent(
 
         for (call in toolCalls) {
             val toolName = call["name"] as? String ?: ""
+            val toolCallId = call["id"] as? String ?: ""
             if (toolName.isBlank()) {
                 android.util.Log.w("BaseAgent", "工具调用缺少 name 字段: $call")
+                continue
+            }
+            if (toolCallId.isBlank()) {
+                android.util.Log.w("BaseAgent", "工具调用缺少 id 字段: $call")
                 continue
             }
             
@@ -250,12 +335,19 @@ abstract class BaseAgent(
                 val args = arrayOf(toolArguments)
                 val result = callTool(toolName, *args)
 
+                // 工具消息的 metadata 需要包含 tool_call_id 和 tool_name
+                val toolMetadata = mapOf(
+                    "tool_call_id" to toolCallId,
+                    "tool_name" to toolName
+                )
+
                 when (result) {
                     is com.aiteacher.ai.tool.ToolResult.QueryResult -> {
                         // 查询类结果：反馈给 LLM，继续思考
                         memoryManager.insertMessage(
-                            role = "tool:$toolName",
-                            content = result.data.toString()
+                            role = "tool",
+                            content = result.data.toString(),
+                            metadata = toolMetadata
                         )
                     }
 
@@ -269,23 +361,29 @@ abstract class BaseAgent(
                         }
 
                         memoryManager.insertMessage(
-                            role = "tool:$toolName",
-                            content = if(result.success) "success: ${result.message}" else "error: ${result.message}"
+                            role = "tool",
+                            content = if(result.success) "success: ${result.message}" else "error: ${result.message}",
+                            metadata = toolMetadata
                         )
                     }
 
                     null -> {
                         memoryManager.insertMessage(
-                            role = "tool:$toolName",
-                            content = "Tool result is null"
+                            role = "tool",
+                            content = "Tool result is null",
+                            metadata = toolMetadata
                         )
                     }
                 }
             } catch (e: Exception) {
                 val errorMsg = e.message ?: "Unknown error"
                 memoryManager.insertMessage(
-                    role = "tool:$toolName",
-                    content = "Error: $errorMsg"
+                    role = "tool",
+                    content = "Error: $errorMsg",
+                    metadata = mapOf(
+                        "tool_call_id" to toolCallId,
+                        "tool_name" to toolName
+                    )
                 )
             }
         }
@@ -408,6 +506,152 @@ abstract class BaseAgent(
     suspend fun initializeMemory(userId: String, sessionId: String? = null) {
         val finalSessionId = sessionId ?: "${name}_${userId}"
         memoryManager.initialize(userId, finalSessionId)
+    }
+    
+    /**
+     * 打印工具规格（用于调试）
+     * 在 Agent 初始化完成后调用，查看加载的工具
+     */
+    fun printToolsSpecs() {
+        android.util.Log.d("BaseAgent", "========== Agent 工具列表 ($name) ==========")
+        android.util.Log.d("BaseAgent", "工具数量: ${tools.size}")
+        
+        tools.forEachIndexed { index, tool ->
+            val spec = tool.toToolSpec()
+            val json = kotlinx.serialization.json.Json { 
+                ignoreUnknownKeys = true
+                prettyPrint = true
+            }
+            try {
+                // 将 Map 转换为 JsonObject 以便格式化输出
+                val jsonObject = buildJsonObject {
+                    spec.forEach { (key, value) ->
+                        put(key, valueToJsonElement(value))
+                    }
+                }
+                val formattedJson = json.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), jsonObject)
+                android.util.Log.d("BaseAgent", "工具[$index] ${tool.toolName}:")
+                android.util.Log.d("BaseAgent", formattedJson)
+            } catch (e: Exception) {
+                android.util.Log.d("BaseAgent", "工具[$index] ${tool.toolName}: $spec")
+            }
+        }
+        android.util.Log.d("BaseAgent", "=====================================")
+    }
+    
+    /**
+     * 打印请求中的工具规格（用于调试）
+     * 在发送请求前调用，查看实际发送给 LLM 的工具规格
+     */
+    private fun printToolsSpecsForRequest(toolSpecs: List<Map<String, Any>>) {
+        android.util.Log.d("BaseAgent", "========== 发送给 LLM 的工具规格 ($name) ==========")
+        android.util.Log.d("BaseAgent", "工具数量: ${toolSpecs.size}")
+        
+        val json = kotlinx.serialization.json.Json { 
+            ignoreUnknownKeys = true
+            prettyPrint = true
+        }
+        
+        toolSpecs.forEachIndexed { index, spec ->
+            try {
+                // 将 Map 转换为 JsonObject 以便格式化输出
+                val jsonObject = buildJsonObject {
+                    spec.forEach { (key, value) ->
+                        put(key, valueToJsonElement(value))
+                    }
+                }
+                val formattedJson = json.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), jsonObject)
+                android.util.Log.d("BaseAgent", "工具规格[$index]:")
+                android.util.Log.d("BaseAgent", formattedJson)
+            } catch (e: Exception) {
+                android.util.Log.d("BaseAgent", "工具规格[$index]: $spec")
+                android.util.Log.w("BaseAgent", "格式化工具规格失败: ${e.message}")
+            }
+        }
+        android.util.Log.d("BaseAgent", "=====================================")
+    }
+    
+    /**
+     * 读取配置文件内容
+     * 支持从 assets 目录或文件系统读取
+     * 
+     * @param configPath 配置路径：
+     *   - assets 路径：如 "home_tools.json" 或 "configs/home_tools.json"
+     *   - 文件系统路径：如 "app/src/main/kotlin/..."
+     * @return 文件内容，如果读取失败返回 null
+     */
+    private fun readConfigFile(configPath: String): String? {
+        return try {
+            // 先尝试从 assets 读取（适用于 Android 应用）
+            try {
+                // 通过 Application 单例获取 Context
+                val context = try {
+                    com.aiteacher.AITeacherApplication.getInstance()
+                } catch (e: Exception) {
+                    android.util.Log.w("BaseAgent", "无法获取 Application 实例，尝试文件系统读取: ${e.message}")
+                    throw e
+                }
+                val assetManager = context.assets
+                
+                // 如果路径包含 "/"，尝试直接打开；否则尝试在 assets 根目录查找
+                val assetPath = if (configPath.contains("/")) {
+                    configPath
+                } else {
+                    // 尝试在 assets 根目录查找
+                    configPath
+                }
+                
+                assetManager.open(assetPath).use { inputStream ->
+                    inputStream.bufferedReader().use { it.readText() }
+                }?.also {
+                    android.util.Log.d("BaseAgent", "从 assets 读取配置文件: $assetPath")
+                }
+            } catch (e: Exception) {
+                // assets 读取失败，尝试从文件系统读取（开发/调试时）
+                android.util.Log.d("BaseAgent", "从 assets 读取失败，尝试文件系统: ${e.message}")
+                
+                val configFile = java.io.File(configPath)
+                if (configFile.exists()) {
+                    configFile.readText().also {
+                        android.util.Log.d("BaseAgent", "从文件系统读取配置文件: $configPath")
+                    }
+                } else {
+                    android.util.Log.w("BaseAgent", "配置文件不存在: $configPath")
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("BaseAgent", "读取配置文件失败: $configPath", e)
+            null
+        }
+    }
+    
+    /**
+     * 将任意值转换为 JsonElement（用于格式化输出）
+     */
+    private fun valueToJsonElement(value: Any?): kotlinx.serialization.json.JsonElement {
+        return when (value) {
+            null -> kotlinx.serialization.json.JsonNull
+            is String -> kotlinx.serialization.json.JsonPrimitive(value)
+            is Number -> kotlinx.serialization.json.JsonPrimitive(value)
+            is Boolean -> kotlinx.serialization.json.JsonPrimitive(value)
+            is Map<*, *> -> {
+                kotlinx.serialization.json.buildJsonObject {
+                    @Suppress("UNCHECKED_CAST")
+                    (value as Map<String, Any?>).forEach { (k, v) ->
+                        put(k, valueToJsonElement(v))
+                    }
+                }
+            }
+            is List<*> -> {
+                kotlinx.serialization.json.buildJsonArray {
+                    value.forEach { item ->
+                        add(valueToJsonElement(item))
+                    }
+                }
+            }
+            else -> kotlinx.serialization.json.JsonPrimitive(value.toString())
+        }
     }
     
     /**

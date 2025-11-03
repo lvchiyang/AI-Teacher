@@ -25,7 +25,7 @@ data class LLMOutput(
  * 只包含Agent需要指定的参数，其他参数使用LLMModel的默认值
  */
 data class AgentRequest(
-    val messages: List<Map<String, String>>,
+    val messages: List<Map<String, Any>>,
     val tools: List<Map<String, Any>> = emptyList(),
     val model: String? = null,  // 如果为null，使用LLMModel的默认modelName
     val temperature: Float? = null,  // 如果为null，使用LLMModel的默认temperature
@@ -138,12 +138,13 @@ class LLMModel(
                 // 构建请求体 JSON 对象（根据请求体文档）
                 val requestBody = buildJsonObject {
                     put("model", modelName)
+                    // messages 已经是从 MemoryManager.getMemory() 获取的符合 API 格式的数据
+                    // 直接使用 valueToJsonElement 转换，无需手动构建
                     put("messages", buildJsonArray {
                         request.messages.forEach { msg ->
-                            add(buildJsonObject {
-                                put("role", msg["role"] ?: "user")
-                                put("content", msg["content"] ?: "")
-                            })
+                            // msg 已经是 Map<String, Any>，符合 API 格式
+                            // 使用 valueToJsonElement 递归转换整个消息对象
+                            add(valueToJsonElement(msg) as? JsonObject ?: buildJsonObject { })
                         }
                     })
                     

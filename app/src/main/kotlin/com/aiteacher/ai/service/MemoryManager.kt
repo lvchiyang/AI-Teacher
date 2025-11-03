@@ -92,12 +92,62 @@ class MemoryManager : KoinComponent {
     
     // 将MessageEntity转换为MemoryEntry的辅助函数
     private fun toMemoryEntry(message: MessageEntity): MemoryEntry {
+        // 构建符合 API 格式的消息对象（可以直接 JSON 序列化）
+        val contentMap = mutableMapOf<String, Any>(
+            "role" to message.role,
+            "content" to message.content
+        )
+        
+        // 如果是 assistant 消息且有 tool_calls，从 metadata 中提取并添加
+        if (message.role == "assistant" && message.metadata.containsKey("tool_calls_json")) {
+            try {
+                val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                val toolCallsJson = message.metadata["tool_calls_json"]
+                if (toolCallsJson != null) {
+                    val toolCalls = json.parseToJsonElement(toolCallsJson) as? kotlinx.serialization.json.JsonArray
+                    if (toolCalls != null) {
+                        // 转换为 List<Map<String, Any>>
+                        val toolCallsList = toolCalls.map { element ->
+                            val obj = element as? kotlinx.serialization.json.JsonObject ?: kotlinx.serialization.json.buildJsonObject { }
+                            obj.entries.associate { (k, v) ->
+                                k to when (v) {
+                                    is kotlinx.serialization.json.JsonPrimitive -> {
+                                        val content = v.content
+                                        when {
+                                            content == "true" || content == "false" -> content == "true"
+                                            content.toDoubleOrNull() != null -> content.toDouble()
+                                            content.toLongOrNull() != null -> content.toLong()
+                                            else -> content
+                                        }
+                                    }
+                                    is kotlinx.serialization.json.JsonObject -> v.entries.associate { (k2, v2) ->
+                                        k2 to (if (v2 is kotlinx.serialization.json.JsonPrimitive) v2.content else v2.toString())
+                                    }
+                                    is kotlinx.serialization.json.JsonArray -> v.map { if (it is kotlinx.serialization.json.JsonPrimitive) it.content else it.toString() }
+                                }
+                            }
+                        }
+                        contentMap["tool_calls"] = toolCallsList
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("MemoryManager", "解析 tool_calls 失败: ${e.message}")
+            }
+        }
+        
+        // 如果是 tool 消息，从 metadata 中提取 tool_call_id 和 tool_name
+        if (message.role == "tool" && message.metadata.isNotEmpty()) {
+            message.metadata["tool_call_id"]?.let {
+                contentMap["tool_call_id"] = it
+            }
+            message.metadata["tool_name"]?.let {
+                contentMap["name"] = it
+            }
+        }
+        
         return MemoryEntry(
             id = message.messageId,
-            content = mapOf(
-                "role" to message.role,
-                "content" to message.content
-            ),
+            content = contentMap,
             timestamp = Date(message.createdAt),
             metadata = message.metadata
         )
@@ -147,9 +197,18 @@ class MemoryManager : KoinComponent {
 
     /**
      * 获取会话的记忆
+     * 返回的消息格式：可以直接用于 JSON 序列化
+     * - 普通消息：{"role": "user/assistant", "content": "..."}
+     * - Tool 消息：{"role": "tool", "content": "...", "tool_call_id": "...", "name": "..."}
+     * 
+     * 这个格式直接符合 OpenAI/DashScope API 的 messages 字段要求，无需再次转换
      */
-    fun getMemory(n: Int? = null): List<Map<String, String>> {
-        return contextMemory.getContext(n)
+    fun getMemory(n: Int? = null): List<Map<String, Any>> {
+        return contextMemory.getContext(n).map { entry ->
+            // entry.content 已经是符合 API 格式的 Map<String, Any>
+            // 包含 role, content, 以及 tool 消息的 tool_call_id 和 name
+            entry.content
+        }
     }
 
 }
@@ -184,22 +243,11 @@ class ContextMemory(private val maxMemorySize: Int = 100) {
     /**
      * 获取上下文
      */
-    fun getContext(n: Int? = null): List<Map<String, String>> {
+    fun getContext(n: Int? = null): List<MemoryEntry> {
         if (n != null) {
-            val recentMemories = memories.takeLast(n)
-            return recentMemories.map { entry ->
-                mapOf(
-                    "role" to (entry.content["role"] as? String ?: ""),
-                    "content" to (entry.content["content"] as? String ?: "")
-                )
-            }
+            return memories.takeLast(n)
         } else {
-            return memories.map { entry ->
-                mapOf(
-                    "role" to (entry.content["role"] as? String ?: ""),
-                    "content" to (entry.content["content"] as? String ?: "")
-                )
-            }
+            return memories.toList()
         }
     }
 

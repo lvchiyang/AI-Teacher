@@ -173,10 +173,9 @@ class MainViewModel(
             }
         }
         
-        // 配置文件路径（相对于项目根目录或使用绝对路径）
-        // 注意：在实际运行时，需要使用正确的文件路径
-        // 这里使用相对路径，实际项目中可能需要从assets或files目录读取
-        val configPath = "app/src/main/kotlin/com/aiteacher/ai/agent/configs/home_tools.json"
+        // 配置文件路径（assets 路径）
+        // 配置文件应放在 app/src/main/assets/ 目录下
+        val configPath = "home_tools.json"
         
         // 从配置文件创建 HomeAgent（支持依赖注入的工具）
         homeAgent = HomeAgent(
