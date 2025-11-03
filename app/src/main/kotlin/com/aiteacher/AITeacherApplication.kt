@@ -23,6 +23,9 @@ class AITeacherApplication : Application() {
         super.onCreate()
         instance = this
         
+        // 如果需要强制删除数据库，取消下面的注释
+        // AppDatabase.deleteDatabase(this)
+        
         // 启动Koin
         startKoin {
             androidLogger()

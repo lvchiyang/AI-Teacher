@@ -2,14 +2,18 @@ package com.aiteacher.ai.service
 
 import com.aiteacher.data.local.dao.MessageDao
 import com.aiteacher.data.local.dao.SessionDao
+import com.aiteacher.data.local.dao.UserDao
 import com.aiteacher.data.local.entity.MessageEntity
 import com.aiteacher.data.local.entity.SessionEntity
+import com.aiteacher.data.local.entity.UserEntity
+import com.aiteacher.data.local.entity.UserType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import android.util.Log
 import java.util.Date
 import java.util.UUID
 
@@ -21,15 +25,43 @@ class MemoryManager : KoinComponent {
     // 使用Koin依赖注入获取DAO实例
     private val sessionDao: SessionDao by inject()
     private val messageDao: MessageDao by inject()
+    private val userDao: UserDao by inject()
     
     private var messageObserverJob: Job? = null
+    private var currentUserId: String? = null
 
     fun setSessionId(sessionId: String) {
         this.sessionId = sessionId
     }
+    
+    fun setUserId(userId: String) {
+        this.currentUserId = userId
+    }
 
     suspend fun initialize(userId: String, sessionId: String) {
-        // 检查会话是否存在，如果不存在则创建一个新的会话
+        this.currentUserId = userId
+        this.sessionId = sessionId
+        ensureUserAndSession(userId, sessionId)
+    }
+    
+    /**
+     * 确保用户和会话存在，如果不存在则自动创建
+     */
+    private suspend fun ensureUserAndSession(userId: String, sessionId: String) {
+        // 1. 确保用户存在
+        var user = userDao.getUserById(userId)
+        if (user == null) {
+            // 创建默认用户（学生类型）
+            user = UserEntity(
+                userId = userId,
+                userType = UserType.STUDENT,
+                studentId = userId  // 默认使用 userId 作为 studentId
+            )
+            userDao.insertUser(user)
+            Log.d("MemoryManager", "自动创建用户: $userId")
+        }
+        
+        // 2. 检查会话是否存在，如果不存在则创建一个新的会话
         var session = sessionDao.getSessionById(sessionId)
         if (session == null) {
             // 创建新的会话
@@ -41,6 +73,7 @@ class MemoryManager : KoinComponent {
                 updatedAt = System.currentTimeMillis()
             )
             sessionDao.insertSession(session)
+            Log.d("MemoryManager", "自动创建会话: $sessionId, userId: $userId")
         }
     }
     
@@ -72,7 +105,6 @@ class MemoryManager : KoinComponent {
     
     /**
      * 将新的消息插入到数据库中
-     * @param sessionId 会话ID
      * @param role 消息角色（如"user"或"assistant"）
      * @param content 消息内容
      * @param tokens 消息的token数量
@@ -85,6 +117,10 @@ class MemoryManager : KoinComponent {
         tokens: Int = 0,
         metadata: Map<String, String> = emptyMap()
     ): String {
+        // 确保用户和会话存在（使用默认值或当前设置的值）
+        val userId = currentUserId ?: "default_user"
+        ensureUserAndSession(userId, sessionId)
+        
         // 生成唯一的消息ID
         val messageId = UUID.randomUUID().toString()
         

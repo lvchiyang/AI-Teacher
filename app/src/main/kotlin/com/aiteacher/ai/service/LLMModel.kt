@@ -8,6 +8,7 @@ import io.ktor.http.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
+import android.util.Log
 
 /**
  * LLM输出数据类
@@ -64,7 +65,7 @@ class LLMModel(
     private val defaultToolChoice: Map<String, Any>? = null
 ) {
     // DashScope API 端点
-    private val apiUrl = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
+    private val apiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
     
     // HTTP 客户端（使用 Ktor）
     private val httpClient = HttpClient(CIO)
@@ -188,44 +189,84 @@ class LLMModel(
                     if (n > 1) put("n", n)
                 }
                 
+                // 将 JsonObject 转换为 JSON 字符串
+                val json = Json { ignoreUnknownKeys = true; isLenient = true }
+                val requestBodyJson = json.encodeToString(JsonElement.serializer(), requestBody)
+                
+                // 打印请求信息
+                Log.d("LLMModel", "========== 发送请求 ==========")
+                Log.d("LLMModel", "URL: $apiUrl")
+                Log.d("LLMModel", "请求体: $requestBodyJson")
+                
                 // 发送 HTTP 请求
                 val response = httpClient.post(apiUrl) {
                     headers {
                         append("Authorization", "Bearer $apiKey")
                         append(HttpHeaders.ContentType, "application/json")
                     }
-                    setBody(requestBody)
+                    setBody(requestBodyJson)
                 }
                 
                 // 解析响应
                 val responseText = response.body<String>()
-                val json = Json { ignoreUnknownKeys = true; isLenient = true }
+                
+                // 打印原始响应
+                Log.d("LLMModel", "========== 收到响应 ==========")
+                Log.d("LLMModel", "HTTP 状态码: ${response.status.value}")
+                Log.d("LLMModel", "原始响应文本: $responseText")
+                
                 val responseJson = json.parseToJsonElement(responseText) as JsonObject
+                Log.d("LLMModel", "解析后的 JSON 对象键: ${responseJson.keys.joinToString()}")
                 
                 // 检查是否有错误
                 if (response.status.value >= 400) {
                     val errorMessage = responseJson["message"]?.jsonPrimitive?.content 
+                        ?: responseJson["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content
                         ?: "API调用失败: HTTP ${response.status.value}"
+                    Log.e("LLMModel", "API 错误: $errorMessage")
                     throw Exception(errorMessage)
                 }
                 
-                // 提取输出
-                val output = responseJson["output"] as? JsonObject
-                    ?: throw Exception("响应格式错误：缺少 output 字段")
-                
-                val choices = output["choices"] as? JsonArray
-                    ?: throw Exception("响应格式错误：缺少 choices 字段")
+                // 提取输出（兼容两种响应格式）
+                // 格式1: DashScope 原生格式 {"output": {"choices": [...]}}
+                // 格式2: OpenAI 兼容格式 {"choices": [...]}
+                val choices: JsonArray = if (responseJson.containsKey("output")) {
+                    // DashScope 原生格式
+                    val output = responseJson["output"] as? JsonObject
+                        ?: throw Exception("响应格式错误：缺少 output 字段")
+                    val choicesArray = output["choices"] as? JsonArray
+                        ?: throw Exception("响应格式错误：缺少 choices 字段")
+                    Log.d("LLMModel", "检测到 DashScope 原生格式")
+                    choicesArray
+                } else if (responseJson.containsKey("choices")) {
+                    // OpenAI 兼容格式
+                    val choicesArray = responseJson["choices"] as? JsonArray
+                        ?: throw Exception("响应格式错误：缺少 choices 字段")
+                    Log.d("LLMModel", "检测到 OpenAI 兼容格式")
+                    choicesArray
+                } else {
+                    throw Exception("响应格式错误：缺少 output 或 choices 字段。可用字段: ${responseJson.keys.joinToString(", ")}")
+                }
                 
                 if (choices.isEmpty()) {
                     throw Exception("响应格式错误：choices 为空")
                 }
                 
+                Log.d("LLMModel", "choices 数量: ${choices.size}")
+                
                 val firstChoice = choices[0] as JsonObject
+                Log.d("LLMModel", "firstChoice 键: ${firstChoice.keys.joinToString()}")
+                
+                // 兼容两种格式：DashScope 使用 message，OpenAI 兼容格式也可能不同
                 val message = firstChoice["message"] as? JsonObject
-                    ?: throw Exception("响应格式错误：缺少 message 字段")
+                    ?: firstChoice["delta"] as? JsonObject  // 流式响应可能使用 delta
+                    ?: throw Exception("响应格式错误：缺少 message/delta 字段。firstChoice 键: ${firstChoice.keys.joinToString()}")
+                
+                Log.d("LLMModel", "message 键: ${message.keys.joinToString()}")
                 
                 // 提取 content（可能是 String 或 Array）
                 val contentValue = message["content"]
+                Log.d("LLMModel", "content 类型: ${contentValue?.javaClass?.simpleName}")
                 val content: String = when (contentValue) {
                     is JsonPrimitive -> contentValue.content
                     is JsonArray -> {
@@ -256,10 +297,14 @@ class LLMModel(
                     else -> contentValue?.toString() ?: ""
                 }
                 
+                Log.d("LLMModel", "提取的 content: $content")
+                
                 // 提取 tool_calls（如果有）
                 val toolCalls = mutableListOf<Map<String, Any>>()
                 val toolCallsArray = message["tool_calls"] as? JsonArray
-                toolCallsArray?.forEach { toolCallElement ->
+                Log.d("LLMModel", "tool_calls 数量: ${toolCallsArray?.size ?: 0}")
+                
+                toolCallsArray?.forEachIndexed { index, toolCallElement ->
                     val toolCall = toolCallElement as? JsonObject
                     if (toolCall != null) {
                         val functionObj = toolCall["function"] as? JsonObject
@@ -285,7 +330,6 @@ class LLMModel(
                                         is JsonObject -> v.entries.associate { (k2, v2) -> 
                                             k2 to (if (v2 is JsonPrimitive) v2.content else v2.toString()) 
                                         }
-                                        else -> v.toString()
                                     }
                                 }
                             } else {
@@ -295,32 +339,48 @@ class LLMModel(
                             emptyMap<String, Any>()
                         }
                         
-                        toolCalls.add(mapOf(
+                        val toolCallMap = mapOf(
                             "id" to (toolCall["id"]?.jsonPrimitive?.content ?: ""),
                             "name" to (functionObj?.get("name")?.jsonPrimitive?.content ?: ""),
                             "arguments" to arguments
-                        ))
+                        )
+                        toolCalls.add(toolCallMap)
+                        Log.d("LLMModel", "工具调用[$index]: name=${toolCallMap["name"]}, id=${toolCallMap["id"]}")
+                        Log.d("LLMModel", "工具调用[$index] 参数: $arguments")
                     }
                 }
                 
-                // 提取 usage 信息
+                // 提取 usage 信息（兼容不同格式）
                 val usageObj = responseJson["usage"] as? JsonObject
                 val usage = usageObj?.let {
-                    mapOf(
-                        "input_tokens" to (it["input_tokens"]?.jsonPrimitive?.longOrNull ?: 0),
-                        "output_tokens" to (it["output_tokens"]?.jsonPrimitive?.longOrNull ?: 0),
+                    val usageMap = mapOf(
+                        "input_tokens" to (it["prompt_tokens"]?.jsonPrimitive?.longOrNull  // OpenAI 格式
+                            ?: it["input_tokens"]?.jsonPrimitive?.longOrNull ?: 0),  // DashScope 格式
+                        "output_tokens" to (it["completion_tokens"]?.jsonPrimitive?.longOrNull  // OpenAI 格式
+                            ?: it["output_tokens"]?.jsonPrimitive?.longOrNull ?: 0),  // DashScope 格式
                         "total_tokens" to (it["total_tokens"]?.jsonPrimitive?.longOrNull ?: 0),
-                        "request_id" to (responseJson["request_id"]?.jsonPrimitive?.content ?: ""),
+                        "request_id" to (responseJson["request_id"]?.jsonPrimitive?.content ?: responseJson["id"]?.jsonPrimitive?.content ?: ""),
                         "finish_reason" to (firstChoice["finish_reason"]?.jsonPrimitive?.content ?: "")
                     )
+                    Log.d("LLMModel", "Token 使用: input=${usageMap["input_tokens"]}, output=${usageMap["output_tokens"]}, total=${usageMap["total_tokens"]}")
+                    usageMap
                 }
                 
-                LLMOutput(
+                val llmOutput = LLMOutput(
                     content = content,
                     model = modelName,
                     usage = usage,
                     toolCalls = toolCalls
                 )
+                
+                Log.d("LLMModel", "========== 最终输出 ==========")
+                Log.d("LLMModel", "模型: ${llmOutput.model}")
+                Log.d("LLMModel", "内容长度: ${llmOutput.content.length} 字符")
+                Log.d("LLMModel", "内容预览: ${llmOutput.content.take(200)}...")
+                Log.d("LLMModel", "工具调用数量: ${llmOutput.toolCalls.size}")
+                Log.d("LLMModel", "=====================================")
+                
+                llmOutput
             } catch (e: Exception) {
                 android.util.Log.e("LLMModel", "Error generating text: ${e.message}", e)
                 throw Exception("生成文本失败: ${e.message}")

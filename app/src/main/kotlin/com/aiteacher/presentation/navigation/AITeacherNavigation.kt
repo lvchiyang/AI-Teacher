@@ -4,13 +4,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.aiteacher.data.local.repository.StudentRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.GlobalScope
 import org.koin.compose.getKoin
 import com.aiteacher.presentation.ui.screens.LoginScreen
 import com.aiteacher.presentation.ui.screens.HomeScreen
@@ -31,6 +31,8 @@ fun AITeacherNavigation(
     studentRepository: StudentRepository,
     viewModel: com.aiteacher.presentation.viewmodel.MainViewModel = getKoin().get<com.aiteacher.presentation.viewmodel.MainViewModel>()
 ) {
+    val scope = rememberCoroutineScope()
+    
     NavHost(
         navController = navController,
         startDestination = Screen.Login.route
@@ -42,9 +44,9 @@ fun AITeacherNavigation(
                     navController.navigate(Screen.HomeChat.route) {
                         popUpTo(Screen.Login.route) { inclusive = true }
                     }
-                    // 异步设置学生信息（在Composable外执行协程）
+                    // 异步设置学生信息（使用 rememberCoroutineScope 替代 GlobalScope）
                     android.util.Log.d("AITeacherNavigation", "准备调用setCurrentStudentFromLogin: $studentId")
-                    GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                    scope.launch {
                         viewModel.setCurrentStudentFromLogin(studentId, studentName, grade)
                     }
                 },

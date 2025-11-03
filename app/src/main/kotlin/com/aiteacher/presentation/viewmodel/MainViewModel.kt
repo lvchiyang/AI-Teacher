@@ -86,6 +86,7 @@ class MainViewModel(
 
     /**
      * 设置当前学生（从登录信息加载）
+     * 同时初始化 Agent 的 MemoryManager（设置 userId 和 sessionId）
      */
     fun setCurrentStudentFromLogin(studentId: String, studentName: String, grade: Int) {
         android.util.Log.d("MainViewModel", "setCurrentStudentFromLogin: $studentId, $studentName, $grade")
@@ -97,8 +98,25 @@ class MainViewModel(
                     _currentStudent.value = student
                 } else {
                     android.util.Log.e("MainViewModel", "数据库中没有找到学生: $studentId")
+                    // 如果找不到学生，创建一个默认的
+                    val defaultStudent = Student(
+                        studentId = studentId,
+                        studentName = studentName,
+                        grade = grade
+                    )
+                    _currentStudent.value = defaultStudent
+                }
+                
+                // 登录成功后，初始化 Agent 的 MemoryManager
+                // userId = studentId（当前登录的学生ID）
+                // sessionId = "home_chat_{studentId}"（主页对话会话，每个学生一个固定会话）
+                if (homeAgent != null) {
+                    val sessionId = "home_chat_$studentId"
+                    homeAgent?.initializeMemory(studentId, sessionId)
+                    android.util.Log.d("MainViewModel", "已初始化 MemoryManager: userId=$studentId, sessionId=$sessionId")
                 }
             } catch (e: Exception) {
+                android.util.Log.e("MainViewModel", "设置学生信息失败", e)
                 // 如果找不到学生，创建一个默认的
                 val defaultStudent = Student(
                     studentId = studentId,
@@ -207,6 +225,16 @@ class MainViewModel(
                 // 调用 HomeAgent
                 val agent = homeAgent
                 if (agent != null) {
+                    // 如果 MemoryManager 还未初始化，现在初始化（使用当前学生ID）
+                    val student = _currentStudent.value
+                    if (student != null) {
+                        // 确保 MemoryManager 已初始化（使用登录时设置的值）
+                        // 如果之前已经初始化过，这里不会重复创建会话
+                        val userId = student.studentId
+                        val sessionId = "home_chat_$userId"
+                        agent.initializeMemory(userId, sessionId)
+                    }
+                    
                     val result = agent.runReAct(userInput)
                     
                     result.onSuccess { response ->

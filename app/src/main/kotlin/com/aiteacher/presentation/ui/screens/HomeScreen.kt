@@ -97,7 +97,7 @@ fun HomeScreen(
             }
             
             item {
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             }
             
             item {

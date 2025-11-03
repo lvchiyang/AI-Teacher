@@ -401,6 +401,16 @@ abstract class BaseAgent(
     }
     
     /**
+     * 初始化 MemoryManager（设置 userId 和 sessionId）
+     * @param userId 用户ID
+     * @param sessionId 会话ID（可选，默认使用 "agent_${name}_${userId}"）
+     */
+    suspend fun initializeMemory(userId: String, sessionId: String? = null) {
+        val finalSessionId = sessionId ?: "${name}_${userId}"
+        memoryManager.initialize(userId, finalSessionId)
+    }
+    
+    /**
      * 关闭Agent
      */
     fun close() {
